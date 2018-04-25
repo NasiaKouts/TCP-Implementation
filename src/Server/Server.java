@@ -23,7 +23,8 @@ public class Server extends BaseServer{
     //                        1 - if not
     private HashMap<InetAddress, Byte> handshakes = new HashMap<>();
 
-    private ArrayList<DatagramPacket> unhandledPackets = new ArrayList<>();
+    private ArrayList<InetAddress> unhandledPacketsIps = new ArrayList<>();
+    private HashMap<InetAddress, ArrayList<DatagramPacket>> unhandledPackets = new HashMap<>();
 
     public Server(String ip, int port) {
         super();
@@ -43,7 +44,7 @@ public class Server extends BaseServer{
             ackMessage[i] = lastSeqNumberReceived.get(address) == 0 ? (byte)1 : (byte)0;
         }
 
-        System.out.println("\n\t ACK Number = " + ackMessage[0]);
+        System.out.println("\n\t ACK Number = " + ackMessage[0] + "   " + ackMessage[1] + "   " + "   " +ackMessage[2]);
         DatagramPacket ackPacket = new DatagramPacket(ackMessage, ackMessage.length, address, port);
         try {
             serverSocket.send(ackPacket);
@@ -54,9 +55,19 @@ public class Server extends BaseServer{
 
     @Override
     public synchronized void run() {
-        if (unhandledPackets.isEmpty()) return;
+        if (unhandledPackets.isEmpty() || unhandledPacketsIps.isEmpty()) return;
 
-        DatagramPacket inPacket = unhandledPackets.remove(unhandledPackets.size() - 1);
+        // until we find a client that is has a packet in line (just for safety checkings)
+        InetAddress randomClientWaiting = unhandledPacketsIps.remove(0);
+        while(!unhandledPackets.containsKey(randomClientWaiting)){
+            if(unhandledPacketsIps.isEmpty()) return;
+            randomClientWaiting = unhandledPacketsIps.remove(0);
+        }
+        DatagramPacket inPacket = unhandledPackets.get(randomClientWaiting).remove(0);
+
+        // in case we removed the last packet came from this client remove the whole arraylist
+        if(unhandledPackets.get(randomClientWaiting).isEmpty())
+            unhandledPackets.remove(randomClientWaiting);
         unhandledPackets.clear();
 
         int port = inPacket.getPort();
@@ -185,14 +196,6 @@ public class Server extends BaseServer{
             //endregion
         }
 
-        ArrayList<Integer> indeces = new ArrayList();
-        for(int i = 0; i < unhandledPackets.size(); i++){
-            if(unhandledPackets.get(i).getAddress().equals(clientAddress)) indeces.add(i);
-        }
-        for(Integer index : indeces){
-            unhandledPackets.remove(index);
-        }
-
 
 /* WAIT FINISH TRANSFER TO CREATE FILE
 
@@ -256,7 +259,24 @@ public class Server extends BaseServer{
                 serverSocket.setSoTimeout(0);
                 serverSocket.receive(datagramPacket);
 
-                unhandledPackets.add(datagramPacket);
+                System.out.println("NEW PACKET ");
+                // ignore a packet if it is from a client that there is already a packet in line
+                if(unhandledPackets.size() != 0) {
+                    if(unhandledPacketsIps.contains(datagramPacket.getAddress())){
+                        // ignore packet
+                        System.out.println("Ignoring this client's packet for now");
+                    }
+                    else{
+                        unhandledPacketsIps.add(datagramPacket.getAddress());
+                        ArrayList<DatagramPacket> packages = new ArrayList();
+                        packages.add(datagramPacket);
+                        unhandledPackets.put(datagramPacket.getAddress(), packages);
+                    }
+                }
+                unhandledPacketsIps.add(datagramPacket.getAddress());
+                ArrayList<DatagramPacket> packages = new ArrayList();
+                packages.add(datagramPacket);
+                unhandledPackets.put(datagramPacket.getAddress(), packages);
                 new Thread(this).start();
             }
         }catch(IOException ignored){}

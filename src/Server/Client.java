@@ -161,7 +161,7 @@ public class Client extends BaseServer{
                         if(ack == 2 || ack != nextPacketSeq()) continue;
                         System.out.println("Client: Received valid ACK!" +
                                 (lastPacketFlag ? "\n\t My job is done here! I sent all my packets" : "\n\t Preparing to send next packet..."));
-                        notReplyToHandshake = false;
+                        noValidAckReceived = false;
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -289,9 +289,9 @@ public class Client extends BaseServer{
                 "\n\t Payload: " + filenameBytes.length +
                 "\n\t Checksum: " + checkSum);
 
-        DatagramPacket sendPacket = new DatagramPacket(fileNamePacket, fileNamePacket.length, getInetServerAddress(), serverPort);
         boolean notReplyToFilenamePacket = true;
         while(notReplyToFilenamePacket){
+            DatagramPacket sendPacket = new DatagramPacket(fileNamePacket, fileNamePacket.length, getInetServerAddress(), serverPort);
             try {
                 byte ack = sendPacketAndDecodeAck(sendPacket);
                 if(ack == 2 || ack != nextPacketSeq()) continue;
@@ -301,20 +301,20 @@ public class Client extends BaseServer{
                 e.printStackTrace();
             }
         }
-
     }
 
     private byte sendPacketAndDecodeAck(DatagramPacket sendPacket) throws IOException {
         socket.send(sendPacket);
         byte[] ackMessageReceived = new byte[3];
         DatagramPacket receivedPacket = new DatagramPacket(ackMessageReceived, ackMessageReceived.length);
-        socket.setSoTimeout(6000);
+        socket.setSoTimeout(11000);
         socket.receive(receivedPacket);
 
+        ackMessageReceived = receivedPacket.getData();
         System.out.println();
         System.out.println("Rceived ACK = " + ackMessageReceived[0] + "   " +  ackMessageReceived[1] + "   " +  ackMessageReceived[2] + "   ");
-        ackMessageReceived = receivedPacket.getData();
-        return decodeACK(ackMessageReceived);
+
+        return ackMessageReceived[0];
     }
 
     private byte nextPacketSeq(){

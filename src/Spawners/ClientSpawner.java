@@ -10,6 +10,9 @@ import java.io.InputStreamReader;
 public class ClientSpawner {
     public static void main(String args[]){
         if(args.length == 0) {
+            new Client("192.168.1.13", 4200, "test.txt", "E:\\", 65000);
+
+
             BufferedReader in;
             try {
                 in = new BufferedReader(new InputStreamReader(System.in));

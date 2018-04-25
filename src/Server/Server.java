@@ -4,10 +4,7 @@ import Models.Packet;
 import Utils.NetworkUtils;
 
 import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.SocketException;
+import java.net.*;
 
 public class Server extends BaseServer{
 
@@ -16,7 +13,6 @@ public class Server extends BaseServer{
 
     /* Define the socket that receives requests */
     protected DatagramSocket inServerSocket;
-    protected DatagramSocket outServerSocket;
 
     private boolean keepListening = true;
 
@@ -26,7 +22,6 @@ public class Server extends BaseServer{
         setPort(port);
         try {
             inServerSocket = new DatagramSocket(getPort());
-            outServerSocket = new DatagramSocket();
             System.out.println(getInstanceName() + " with " +
                     getIp() + ":" + getPort() + " opened! Is now listening...");
         } catch (SocketException e) {
@@ -64,13 +59,13 @@ public class Server extends BaseServer{
             if(packetReceived == null) continue;
 
             try {
-                DatagramSocket outShocket =
-                        new DatagramSocket(inDatagramPacket.getPort(), inDatagramPacket.getAddress());
 
-                DatagramSocket inShocket =
-                        new DatagramSocket(NetworkUtils.GetNextAvailablePort());
+                // create a new socket with the same IP but different port for the server
+                DatagramSocket threadSocket = new DatagramSocket(NetworkUtils.GetNextAvailablePort());
 
-                new ServerClientThread(packetReceived.getSequenceNumber(), outShocket, inShocket,
+
+
+                new ServerClientThread(packetReceived.getSequenceNumber(), threadSocket,
                         inDatagramPacket.getAddress(), inDatagramPacket.getPort())
                         .start();
             } catch (SocketException e) {
@@ -111,41 +106,63 @@ public class Server extends BaseServer{
     }
 
     public class ServerClientThread extends Thread {
-        // out
-        private DatagramSocket ackSocket;
-        // in
-        private DatagramSocket packetSocket;
+        private DatagramSocket socket;
         private int clientPort;
         private InetAddress clientAddress;
         private byte seqExpecting;
 
         private int clientId;
         private int counter = 0;
-
+        private int port;
         private boolean handshakeInComplete = true;
         private String fileName = null;
 
         private boolean listenForMore = true;
 
         // ServerClientThread constructor
-        public ServerClientThread(byte seq, DatagramSocket outSocket, DatagramSocket inSocket, InetAddress clientAddress, int clientPort) {
+        public ServerClientThread(byte seq, DatagramSocket socket, InetAddress clientAddress, int clientPort) {
             this.seqExpecting = NetworkUtils.calculateNextSeqNumber(seq);
-            this.ackSocket = outSocket;
-            this.packetSocket = inSocket;
+            this.socket = socket;
             this.clientAddress = clientAddress;
             this.clientPort = clientPort;
             this.clientId = ++counter;
+            this.port = socket.getPort();
 
             System.out.println("******************************");
             System.out.println("New Thread Listening No: " + counter);
             System.out.println("For client " + clientAddress.getHostAddress());
             System.out.println("");
-            System.out.println("Received the first step of the 3-Way-Handshake! SEQ = " + seq);
+            System.out.println("Received the first step of the 3-Way-Handshake! SEQ = " + seqExpecting);
+            SecondPartHandshake();
+        }
+
+
+        public void SecondPartHandshake(){
             System.out.println("Starting the second step of the 3-Way-Handshake! (Send ACK)");
             System.out.println("******************************");
 
-            sendACK();
+            byte[] ackMessage = new byte[3];
+            for(int i = 0; i < ackMessage.length; i++){
+                ackMessage[i] = seqExpecting;
+            }
+
+            DatagramPacket ackPacket = new DatagramPacket(ackMessage, ackMessage.length, clientAddress, clientPort);
+            try {
+                socket.send(ackPacket);
+                System.out.println("******************************");
+                System.out.println("Sent ACK = " + ackMessage[0] + "\t" + ackMessage[1] + "\t" + ackMessage[2]);
+                System.out.println("******************************");
+            } catch (IOException e) {
+                e.printStackTrace();
+                e.printStackTrace();
+                System.out.println("------------------------------------");
+                System.out.println("new ACK packet Error");
+                System.out.println("------------------------------------");
+            }
         }
+
+
+
 
         /*
             The server sends back to the client an ACK with the SEQ number of the packet he expects next
@@ -159,7 +176,7 @@ public class Server extends BaseServer{
 
             DatagramPacket ackPacket = new DatagramPacket(ackMessage, ackMessage.length, clientAddress, clientPort);
             try {
-                ackSocket.send(ackPacket);
+                socket.send(ackPacket);
                 System.out.println("******************************");
                 System.out.println("Sent ACK = " + ackMessage[0] + "\t" + ackMessage[1] + "\t" + ackMessage[2]);
                 System.out.println("******************************");
@@ -175,11 +192,13 @@ public class Server extends BaseServer{
         @Override
         public void run() {
             byte[] inPacket = new byte[MAX_PACKET_SIZE];
-            DatagramPacket inDatagramPacket = new DatagramPacket(inPacket, MAX_PACKET_SIZE);
-
+            System.out.println("Got in run");
             while(listenForMore){
+                DatagramPacket inDatagramPacket = new DatagramPacket(inPacket, MAX_PACKET_SIZE);
+
                 try {
-                    packetSocket.receive(inDatagramPacket);
+                    System.out.println(socket.getLocalPort());
+                    socket.receive(inDatagramPacket);
                     System.out.println("******************************");
                     System.out.println("A Packet Received by client no: " + clientId);
                     System.out.println("******************************");
@@ -217,7 +236,10 @@ public class Server extends BaseServer{
                     System.out.println("******************************");
                     System.out.println("");
                     handshakeInComplete = false;
-                    seqExpecting = NetworkUtils.calculateNextSeqNumber(seqExpecting);
+                    System.out.println("Old Seq Expecting: "+seqExpecting);
+
+                    //seqExpecting = NetworkUtils.calculateNextSeqNumber(seqExpecting);
+                    System.out.println("New Seq Expecting: "+seqExpecting);
                     continue;
                 }
 
@@ -300,8 +322,7 @@ public class Server extends BaseServer{
             }
 
             System.out.println("Closing Communication with client: " + counter + "...");
-            ackSocket.close();
-            packetSocket.close();
+            socket.close();
         }
     }
 

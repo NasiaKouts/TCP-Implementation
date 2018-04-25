@@ -7,12 +7,13 @@ import java.io.*;
 import java.net.*;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.stream.IntStream;
 
 public class Client extends BaseServer{
 
     // Parallel
     private HashMap<Integer, byte[]> payloadsToSent;
-    private HashMap<Integer, byte[]> payloadsSizes;
+    private HashMap<Integer, Integer> payloadsSizes;
 
     private byte lastPacketSeq = 0;
 
@@ -41,60 +42,84 @@ public class Client extends BaseServer{
         setPort(NetworkUtils.GetNextAvailablePort());
         setIp(NetworkUtils.GetCurrentAddress());
 
+        payloadsSizes = new HashMap<>();
+        payloadsToSent = new HashMap<>();
+
+        File file = new File(fileDir + "\\" + filename);
         try {
-            ackSocket = new DatagramSocket(getPort());
-            System.out.println(getInstanceName() + " with " +
-                    getIp() + ":" + getPort() + " opened! Is now able to receive ACKs");
-        } catch (SocketException e) {
+            InputStream inputStream = new FileInputStream(file);
+            byte[] fileByteArray = new byte[(int) file.length()];
+            inputStream.read(fileByteArray);
+            splitToPackets(fileByteArray);
+
+            while(notFinished){
+                handShake();
+            }
+        } catch (IOException e) {
             e.printStackTrace();
-            System.out.println("------------------------------------");
-            System.out.println("ackSocket = new DatagramSocket(getPort()) error");
-            System.out.println("Re-open Client!");
-            System.out.println("------------------------------------");
-            return;
         }
-
-        try {
-            packetSocket = new DatagramSocket(serverPort, getInetServerAddress());
-            System.out.println("Opened server socket! Is now able to send packets");
-        } catch (SocketException e) {
-            e.printStackTrace();
-            System.out.println("------------------------------------");
-            System.out.println("packetSocket = new DatagramSocket(serverPort, InetAddress.getByName(getServerIp()) error");
-            System.out.println("Re-open Client and Try Again!");
-            System.out.println("------------------------------------");
-            return;
-        } catch (UnknownHostException e) {
-            e.printStackTrace();
-            System.out.println("------------------------------------");
-            System.out.println("Unknown Hoest Error");
-            System.out.println("Re-open Client and Try Again!");
-            System.out.println("------------------------------------");
-            return;
-        }
-
-        byte[] fileByteArray = loadFile(fileDir + "\\" + filename);
-        splitToPackets(fileByteArray);
-
-        while(notFinished){
-            handShake();
-        }
-
     }
 
-    // TODO IMPLEMENT
-    private byte[] loadFile(String path){
-        return new byte[100];
-    }
-
-    // TODO IMPLEMENT
     private void splitToPackets(byte[] bytes){
+        int fullSteps = bytes.length / payloadSize;
 
+        //region [Add Filename Packet]
+
+        byte[] filenameBytes = filename.getBytes();
+
+        ByteBuffer fileNamePacketBuffer = ByteBuffer.allocate(filenameBytes.length + 6);
+        byte[] seqFlag = new byte[2];
+        seqFlag[0] = lastPacketSeq;
+        seqFlag[1] = 0;
+        byte[] filenameSize = ByteBuffer.allocate(4).putInt(filenameBytes.length).array();
+        byte[] filename = ByteBuffer.allocate(filenameBytes.length).put(filenameBytes).array();
+
+        fileNamePacketBuffer.put(seqFlag);
+        fileNamePacketBuffer.put(filenameSize);
+        fileNamePacketBuffer.put(filename);
+
+        byte[] filenamePacketPreCheckSum = fileNamePacketBuffer.array();
+        long checkSum = NetworkUtils.calculateCheckSum(filenamePacketPreCheckSum);
+
+        ByteBuffer fileNameFinalPacketBuffer = ByteBuffer.allocate(filenamePacketPreCheckSum.length + 8);
+        fileNameFinalPacketBuffer.put(filenamePacketPreCheckSum);
+        fileNameFinalPacketBuffer.putLong(checkSum);
+
+        byte[] fileNamePacket = fileNameFinalPacketBuffer.array();
+
+        System.out.println("Client: Sending the filename info packet..." +
+                "\n\t Filename: " + getFilename() +
+                "\n\t Sequence num: " + lastPacketSeq +
+                "\n\t Payload: " + filenameBytes.length +
+                "\n\t Checksum: " + checkSum);
+
+        payloadsToSent.put(-1, fileNamePacket);
+        payloadsSizes.put(-1, filenameBytes.length);
+
+        //endregion
+
+        for(int i = 0; i <= fullSteps; i++){
+            int startIndex = i * payloadSize;
+            int bytesLength = payloadSize;
+            if (i == fullSteps){
+                int lastLength = bytes.length - startIndex;
+                if(lastLength <= 0) return;
+                bytesLength = lastLength;
+            }
+
+            byte[] payload = new byte[bytesLength];
+            IntStream.range(0, bytesLength)
+                    .parallel()
+                    .forEach(k -> payload[k] = bytes[startIndex + k]);
+
+            payloadsToSent.put(i, payload);
+            payloadsSizes.put(i, bytesLength);
+        }
     }
 
     private void handShake(){
         // Send dummy package to initialize handshake, contains only a SEQ number
-        byte [] dummyPacket = new byte[payloadSize + Packet.HEADER_SIZE + Packet.CHECKSUM_SIZE];
+        byte[] dummyPacket = new byte[payloadSize + Packet.HEADER_SIZE + Packet.CHECKSUM_SIZE];
 
         dummyPacket[Packet.SEQ_NUM_INDEX] = lastPacketSeq;
 
@@ -109,7 +134,7 @@ public class Client extends BaseServer{
         System.out.println("Starting the first step of the 3-Way-Handshake!");
         System.out.println("******************************");
 
-        DatagramPacket packetToSent = null;
+        DatagramPacket packetToSent;
         try {
             packetToSent = new DatagramPacket(dummyPacket, dummyPacket.length, getInetServerAddress(), serverPort);
         } catch (UnknownHostException e) {
@@ -121,25 +146,40 @@ public class Client extends BaseServer{
             return;
         }
 
-        sendPacket(packetToSent);
+        boolean reSend = true;
+        while (reSend){
+            int result = sendPacket(packetToSent);
 
-        System.out.println("Client: Last step of 3-way-handshake" +
-                "\n\t Wait a little bit till start sending the file");
-        lastPacketSeq = nextPacketSeq();
-        dummyPacket[Packet.SEQ_NUM_INDEX] = lastPacketSeq;
-        packetToSent = new DatagramPacket(dummyPacket, dummyPacket.length, getInetServerAddress(), serverPort);
-        try {
-            socket.send(packetToSent);
-
-            Thread.sleep(1000);
-            lastPacketSeq = nextPacketSeq();
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+            //Sending Client ACK
+            if(result == SEND_NEXT){
+                dummyPacket[0] = lastPacketSeq;
+                try {
+                    packetToSent = new DatagramPacket(dummyPacket, dummyPacket.length, getInetServerAddress(), serverPort);
+                    sendPacket(packetToSent);
+                    Thread.sleep(1000);
+                    reSend = false;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    return;
+                }
+            }
         }
 
+        for(int key : payloadsSizes.keySet()){
+            try {
+                DatagramPacket filePartToSend = createPacket(key);
+
+                int result = sendPacket(filePartToSend);
+                while (result != SEND_NEXT){
+                    result = sendPacket(filePartToSend);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+                System.out.println("------------------------------------");
+                System.out.println("Failed to Send Packet with Key: " + key);
+                System.out.println("------------------------------------");
+            }
+        }
     }
 
     private final static Integer UNABLE_TO_RESUME = -1;
@@ -150,6 +190,24 @@ public class Client extends BaseServer{
         noValidAckReceived = true;
         while(noValidAckReceived){
             // sending the packet
+            try {
+                packetSocket = new DatagramSocket(serverPort, getInetServerAddress());
+                System.out.println("Opened server socket! Is now able to send packets");
+            } catch (SocketException e) {
+                e.printStackTrace();
+                System.out.println("------------------------------------");
+                System.out.println("packetSocket = new DatagramSocket(serverPort, InetAddress.getByName(getServerIp()) error");
+                System.out.println("Re-open Client and Try Again!");
+                System.out.println("------------------------------------");
+            } catch (UnknownHostException e) {
+                e.printStackTrace();
+                System.out.println("------------------------------------");
+                System.out.println("Unknown Hoest Error");
+                System.out.println("Re-open Client and Try Again!");
+                System.out.println("------------------------------------");
+
+            }
+
             try {
                 packetSocket.send(packetToSent);
                 System.out.println("******************************");
@@ -162,6 +220,24 @@ public class Client extends BaseServer{
                 System.out.println("Reboot System Please!");
                 System.out.println("------------------------------------");
                 return UNABLE_TO_RESUME;
+            }
+
+            packetSocket.close();
+            System.out.println("******************************");
+            System.out.println("Closed packetSocket");
+            System.out.println("******************************");
+
+            try {
+                ackSocket = new DatagramSocket(getPort());
+                System.out.println(getInstanceName() + " with " +
+                        getIp() + ":" + getPort() + " opened! Is now able to receive ACKs");
+            } catch (SocketException e) {
+                e.printStackTrace();
+                System.out.println("------------------------------------");
+                System.out.println("ackSocket = new DatagramSocket(getPort()) error");
+                System.out.println("Re-open Client!");
+                System.out.println("------------------------------------");
+                break;
             }
 
             // packet sent, waiting for ACK
@@ -195,6 +271,11 @@ public class Client extends BaseServer{
                 continue;
             }
 
+            ackSocket.close();
+            System.out.println("******************************");
+            System.out.println("Closed ackSocket");
+            System.out.println("******************************");
+
             byte ackDecoded = decodeACK(ackReceived);
             // If there was error in the transmitted ACK, Retransmit packet
             if(ackDecoded == ERROR_IN_ACK) {
@@ -225,7 +306,7 @@ public class Client extends BaseServer{
                         System.out.println("------------------------------------");
                         System.out.println("DatagramSocket(ackReceivedPacket.getPort(), ackReceivedPacket.getAddress()) Error");
                         System.out.println("------------------------------------");
-                        return  UNABLE_TO_RESUME;
+                        return UNABLE_TO_RESUME;
                     }
                 }
             }
@@ -275,106 +356,40 @@ public class Client extends BaseServer{
     }
     //endregion
 
-    private void sendFile() throws IOException {
-        System.out.println("Client: Sending file to server with ip: " + getServerIp() +
-                            "\n\t File's name: " + getFilename());
+    private DatagramPacket createPacket(int key) throws IOException {
+        /*
+            Packet format:
+                1 byte SEQ NUM
+                1 byte flag ->  1 if it is the last packet
+                                0 if it is not the last packet
+                4 bytes Payload size
+                x bytes Actual data
+                8 bytes CheckSum
+         */
+        boolean isLastPacket = key == (payloadsSizes.size() - 2);
+        int filePartPayloadSize = payloadsSizes.get(key);
+        byte[] filePartPayloadData = payloadsToSent.get(key);
+
+        ByteBuffer packetBytesBuffer = ByteBuffer.allocate(filePartPayloadSize + 6);
+        byte[] seqFlag = new byte[2];
+        seqFlag[0] = lastPacketSeq;
+        seqFlag[1] = isLastPacket ? (byte)1 : (byte)0;
+        byte[] payloadSizeSent = ByteBuffer.allocate(4).putInt(filePartPayloadSize).array();
+
+        packetBytesBuffer.put(seqFlag);
+        packetBytesBuffer.put(payloadSizeSent);
+        packetBytesBuffer.put(filePartPayloadData);
+        byte[] packetBytesPreCheckSum = packetBytesBuffer.array();
+        long checkSum = NetworkUtils.calculateCheckSum(packetBytesPreCheckSum);
+
+        ByteBuffer packetBytes = ByteBuffer.allocate(packetBytesPreCheckSum.length + 8);
+        packetBytes.put(packetBytesPreCheckSum);
+        packetBytes.putLong(checkSum);
+
+        byte[] packet = packetBytes.array();
+        return new DatagramPacket(packet, packet.length, InetAddress.getByName(serverIp), getPort());
 
         /*
-            Create array of bytes to store the file's data
-         */
-        // TODO GET REAL PATH
-        File file = new File("C:\\Users\\Nasia LiAD\\Videos\\DSC_0265.jpg");
-        if(file.exists() && !file.isDirectory()){
-
-            //Path path = Paths.get("C:\\Users\\Nasia LiAD\\Videos\\DSC_0265.jpg");
-            //byte[] fileDataByteArray = Files.readAllBytes(path);
-            InputStream inFromFile = new FileInputStream(file);
-            byte[] fileDataByteArray = new byte[(int)file.length()];
-            inFromFile.read(fileDataByteArray);
-
-
-
-            /*
-                Save the time before the sending have began
-                in order to calculate the time needed to be sent
-             */
-            long startTime = System.nanoTime();
-
-            /*
-                Packet format:
-                    1 byte SEQ NUM
-                    1 byte flag ->  1 if it is the last packet
-                                    0 if it is not the last packet
-                    4 bytes Payload size
-                    x bytes Actual data
-                    8 bytes CheckSum
-             */
-            for(int i = 0; i < fileDataByteArray.length; i = i+payloadSize){
-                boolean lastPacketFlag = (i+payloadSize) >= fileDataByteArray.length;
-                lastPacketSeq = nextPacketSeq();
-
-                // TODO den eimai sigouri oti einai sostos o elegos.
-                // an einai last packet thelw na valw payload toso oso to "ipoloipomeno" meros tu pinaka
-                if(lastPacketFlag && payloadSize > i - fileDataByteArray.length){
-                    payloadSize = fileDataByteArray.length;
-                }
-
-                ByteBuffer packetBytesBuffer = ByteBuffer.allocate(payloadSize + 6);
-                byte[] seqFlag = new byte[2];
-                seqFlag[0] = lastPacketSeq;
-                seqFlag[1] = (!lastPacketFlag ? (byte)0 : (byte)1);
-                byte[] payloadSizeSent = ByteBuffer.allocate(4).putInt(payloadSize).array();
-
-                byte[] data = new byte[payloadSize];
-                if (lastPacketFlag) {
-                    // if it is the last packet send the rest bytes of the array
-                    for (int j=0;  j < fileDataByteArray.length - i; j++) {
-                        data[j] = fileDataByteArray[i+j];
-                    }
-                } else {
-                    for (int j = 0; j < payloadSize; j++) {
-                        data[j] = fileDataByteArray[i+j];
-                    }
-                }
-
-                packetBytesBuffer.put(seqFlag);
-                packetBytesBuffer.put(payloadSizeSent);
-                packetBytesBuffer.put(data);
-                byte[] packetBytesPreCheckSum = packetBytesBuffer.array();
-                long checkSum = NetworkUtils.calculateCheckSum(packetBytesPreCheckSum);
-
-                ByteBuffer packetBytes = ByteBuffer.allocate(packetBytesPreCheckSum.length + 8);
-                packetBytes.put(packetBytesPreCheckSum);
-                packetBytes.putLong(checkSum);
-
-                byte[] packet = packetBytes.array();
-
-                DatagramPacket sendPacket = new DatagramPacket(packet, packet.length, InetAddress.getByName(serverIp), getPort());
-                boolean noValidAckReceived = true;
-                while(noValidAckReceived){
-                    try {
-                        byte ack = sendPacketAndDecodeAck(sendPacket);
-                        if(ack == 2 || ack != nextPacketSeq()) continue;
-                        System.out.println("Client: Received valid ACK!" +
-                                (lastPacketFlag ? "\n\t My job is done here! I sent all my packets" : "\n\t Preparing to send next packet..."));
-                        noValidAckReceived = false;
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                socket.send(sendPacket);
-                System.out.println("Sent: Sequence number = " + lastPacketSeq +
-                        ", Flag = " + (lastPacketFlag ? "Last packet" : "Note last packet") );
-
-            }
-
-        }
-        else {
-            System.out.println("NOT FOUND");
-        }
-
-/*
         CRC32 checksum = new CRC32();
         checksum.update(seqNumBytes);
         checksum.update(dataBytes);
@@ -387,52 +402,7 @@ public class Client extends BaseServer{
         pktBuf.put(dataBytes);
         return pktBuf.array();*/
 
-
     }
-
-    private void sendFileName(){
-        byte [] filenameBytes = filename.getBytes();
-
-        ByteBuffer fileNamePacketBuffer = ByteBuffer.allocate(filenameBytes.length + 6);
-        byte[] seqFlag = new byte[2];
-        seqFlag[0] = lastPacketSeq;
-        seqFlag[1] = 0;
-        byte[] filenameSize = ByteBuffer.allocate(4).putInt(filenameBytes.length).array();
-        byte[] filename = ByteBuffer.allocate(filenameBytes.length).put(filenameBytes).array();
-
-        fileNamePacketBuffer.put(seqFlag);
-        fileNamePacketBuffer.put(filenameSize);
-        fileNamePacketBuffer.put(filename);
-
-        byte[] filenamePacketPreCheckSum = fileNamePacketBuffer.array();
-        long checkSum = NetworkUtils.calculateCheckSum(filenamePacketPreCheckSum);
-
-        ByteBuffer fileNameFinalPacketBuffer = ByteBuffer.allocate(filenamePacketPreCheckSum.length + 8);
-        fileNameFinalPacketBuffer.put(filenamePacketPreCheckSum);
-        fileNameFinalPacketBuffer.putLong(checkSum);
-
-        byte[] fileNamePacket = fileNameFinalPacketBuffer.array();
-
-        System.out.println("Client: Sending the filename info packet..." +
-                "\n\t Filename: " + getFilename() +
-                "\n\t Sequence num: " + lastPacketSeq +
-                "\n\t Payload: " + filenameBytes.length +
-                "\n\t Checksum: " + checkSum);
-
-        boolean notReplyToFilenamePacket = true;
-        while(notReplyToFilenamePacket){
-            DatagramPacket sendPacket = new DatagramPacket(fileNamePacket, fileNamePacket.length, getInetServerAddress(), serverPort);
-            try {
-                byte ack = sendPacketAndDecodeAck(sendPacket);
-                if(ack == 2 || ack != nextPacketSeq()) continue;
-                System.out.println("Client: Received ACK on filename info packet");
-                notReplyToFilenamePacket = false;
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
 
     private InetAddress getInetServerAddress() throws UnknownHostException {
         return InetAddress.getByName(serverIp);

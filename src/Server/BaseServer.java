@@ -1,18 +1,21 @@
 package Server;
 
 import java.io.IOException;
-import java.net.ServerSocket;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.net.DatagramSocket;
 import java.net.Socket;
 
 public abstract class BaseServer implements Runnable{
-    protected String ip;
-    protected int port;
+    private String ip;
+    private int port;
+
+    protected boolean firstTransfer;
+
+    protected static final int FIRST_PAYLOAD = 4;
 
     /* Define the socket that receives requests */
-    private ServerSocket serverSocket;
-
-    /* Define the socket that is used to handle the connection */
-    private Socket clientConn = null;
+    protected DatagramSocket serverSocket;
 
     public String getIp() {
         return ip;
@@ -30,46 +33,24 @@ public abstract class BaseServer implements Runnable{
         this.port = port;
     }
 
+    public DatagramSocket getServerSocket() {
+        return serverSocket;
+    }
+
+    public void setServerSocket(DatagramSocket serverSocket) {
+        this.serverSocket = serverSocket;
+    }
+
     /**
      * Runnable Implementation
      */
     public abstract void run();
 
-    public void OpenServer(){
-        try {
-            serverSocket = new ServerSocket(getPort());
+    public abstract void openServer();
 
-            System.out.println(getInstanceName() + " wiht " +
-                    getIp() + ":" + getPort() + " opened!");
-
-            //noinspection InfiniteLoopStatement
-            while (true) {
-                clientConn = serverSocket.accept();
-
-                /*
-                    Creates a new thread from the runnable implementation
-                    instance and start it. Remember this will call the
-                    override method of Worker/Master/Client respectively
-                 */
-                (new Thread(this)).start();
-            }
-        }catch(IOException ignored){}
-        finally {
-            if(serverSocket != null){
-                try{
-                    serverSocket.close();
-                    System.out.println(getInstanceName() + " with " +
-                            getIp() + ":" + getPort() + " closed!");
-                }catch(IOException ignored){}
-            }
-        }
-    }
-
-    public void CloseServer(){
+    public void closeServer(){
         if(serverSocket != null){
-            try{
-                serverSocket.close();
-            }catch(IOException ignored){}
+            serverSocket.close();
         }
     }
 
@@ -77,6 +58,29 @@ public abstract class BaseServer implements Runnable{
         if(this instanceof Server) return "Server";
         return "Client";
     }
+
+    public void CloseConnections(ObjectInputStream in, ObjectOutputStream out){
+        try{
+            if (in != null) {
+                in.close();
+            }
+            if (out != null){
+                out.close();
+            }
+        }
+        catch(IOException ignored){}
+    }
+
+    public void CloseConnections(Socket socket, ObjectInputStream in, ObjectOutputStream out){
+        try{
+            if (socket != null){
+                socket.close();
+            }
+            CloseConnections(in, out);
+        }
+        catch(IOException ignored){}
+    }
+
 
     @Override
     public String toString() {

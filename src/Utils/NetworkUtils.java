@@ -46,4 +46,50 @@ public class NetworkUtils {
             }
         }
     }
+
+    /**\
+     * /**
+     * Calculates the 16-bit 1's complement checksum.
+     * @param buffer : The buffer to which we are going to calculate the checksum.
+     *
+     * Returns the checksum of the given buffer
+     * @return the checksum of the given buffer
+     */
+    public static long calculateCheckSum(byte[] buffer) {
+        int length = buffer.length;
+        int i = 0;
+
+        long sum = 0;
+        long data;
+
+        // Handle all pairs
+        while (length > 1) {
+            data = (((buffer[i] << 8) & 0xFF00) | ((buffer[i + 1]) & 0xFF));
+            sum += data;
+            // 1's complement carry bit correction in 16-bits (detecting sign extension)
+            if ((sum & 0xFFFF0000) > 0) {
+                sum = sum & 0xFFFF;
+                sum += 1;
+            }
+
+            i += 2;
+            length -= 2;
+        }
+
+        // Handle remaining byte in odd length buffers
+        if (length > 0) {
+            // Corrected to include @Andy's edits and various comments on Stack Overflow
+            sum += (buffer[i] << 8 & 0xFF00);
+            // 1's complement carry bit correction in 16-bits (detecting sign extension)
+            if ((sum & 0xFFFF0000) > 0) {
+                sum = sum & 0xFFFF;
+                sum += 1;
+            }
+        }
+
+        // Final 1's complement value correction to 16-bits
+        sum = ~sum;
+        sum = sum & 0xFFFF;
+        return sum;
+    }
 }

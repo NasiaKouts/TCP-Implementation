@@ -3,19 +3,11 @@ package Server;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.net.DatagramSocket;
 import java.net.Socket;
 
-public abstract class BaseServer implements Runnable{
+public class BaseServer{
     private String ip;
     private int port;
-
-    protected boolean firstTransfer;
-
-    protected static final int FIRST_PAYLOAD = 4;
-
-    /* Define the socket that receives requests */
-    protected DatagramSocket serverSocket;
 
     public String getIp() {
         return ip;
@@ -31,27 +23,6 @@ public abstract class BaseServer implements Runnable{
 
     public void setPort(int port) {
         this.port = port;
-    }
-
-    public DatagramSocket getServerSocket() {
-        return serverSocket;
-    }
-
-    public void setServerSocket(DatagramSocket serverSocket) {
-        this.serverSocket = serverSocket;
-    }
-
-    /**
-     * Runnable Implementation
-     */
-    public abstract void run();
-
-    public abstract void openServer();
-
-    public void closeServer(){
-        if(serverSocket != null){
-            serverSocket.close();
-        }
     }
 
     protected String getInstanceName(){

@@ -6,7 +6,7 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.stream.IntStream;
-
+// size == 0 for handshakes
 public class Packet {
     private byte sequenceNumber;
     private boolean notLastPacket;
@@ -155,6 +155,14 @@ public class Packet {
 			checkSumCalculated.update(realPacket);
 			return checkSumCalculated == checksum;
          */
+    }
+
+    public long caluclateCheckSumFromRawData(byte[] rawPacket){
+        byte[] realPacket = new byte[payloadSize + 6];
+        for(int i = 0; i < realPacket.length; i++){
+            realPacket[i] = rawPacket[i];
+        }
+        return NetworkUtils.calculateCheckSum(realPacket);
     }
 
     @Override

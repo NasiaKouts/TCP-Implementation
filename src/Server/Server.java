@@ -111,7 +111,9 @@ public class Server extends BaseServer{
     }
 
     public class ServerClientThread extends Thread {
+        // out
         private DatagramSocket ackSocket;
+        // in
         private DatagramSocket packetSocket;
         private int clientPort;
         private InetAddress clientAddress;

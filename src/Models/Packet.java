@@ -3,10 +3,9 @@ package Models;
 import Utils.NetworkUtils;
 
 import java.net.InetAddress;
-import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.stream.IntStream;
-// size == 0 for handshakes
+
+// payloadsize == 0 for handshakes
 public class Packet {
     private byte sequenceNumber;
     private boolean notLastPacket;
@@ -23,6 +22,8 @@ public class Packet {
         this.port = port;
     }
 
+    public final static int HEADER_SIZE = 6;
+    public final static int CHECKSUM_SIZE = 8;
     public final static int SEQ_NUM_INDEX = 0;
     public final static int FLAG_INDEX = 1;
     public final static int PAYLOAD_SIZE_START_INDEX = 2;

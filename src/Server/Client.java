@@ -87,16 +87,14 @@ public class Client extends BaseServer{
             Create array of bytes to store the file's data
          */
         // TODO GET REAL PATH
-        File file = new File("/d:/desktop/DSC_0409.JPG");
+        File file = new File("C:\\Users\\Nasia LiAD\\Videos\\DSC_0265.jpg");
         if(file.exists() && !file.isDirectory()){
 
-            Path path = Paths.get("/d:/desktop/DSC_0409.JPG");
-            byte[] fileDataByteArray = Files.readAllBytes(path);
-        /* todo ??
-        InputStream inFromFile = new FileInputStream(file);
-        byte[] fileDataByteArray = new byte[(int)file.length()];
-        inFromFile.read(fileDataByteArray);
-        */
+            //Path path = Paths.get("C:\\Users\\Nasia LiAD\\Videos\\DSC_0265.jpg");
+            //byte[] fileDataByteArray = Files.readAllBytes(path);
+            InputStream inFromFile = new FileInputStream(file);
+            byte[] fileDataByteArray = new byte[(int)file.length()];
+            inFromFile.read(fileDataByteArray);
 
 
 
@@ -135,11 +133,11 @@ public class Client extends BaseServer{
                 if (lastPacketFlag) {
                     // if it is the last packet send the rest bytes of the array
                     for (int j=0;  j < fileDataByteArray.length - i; j++) {
-                        data[j+3] = fileDataByteArray[i+j];
+                        data[j] = fileDataByteArray[i+j];
                     }
                 } else {
                     for (int j = 0; j < payloadSize; j++) {
-                        data[j+3] = fileDataByteArray[i+j];
+                        data[j] = fileDataByteArray[i+j];
                     }
                 }
 
@@ -175,6 +173,9 @@ public class Client extends BaseServer{
 
             }
 
+        }
+        else {
+            System.out.println("NOT FOUND");
         }
 
 /*
@@ -248,7 +249,7 @@ public class Client extends BaseServer{
         try {
             socket.send(sendPacket);
 
-            Thread.sleep(9000);
+            Thread.sleep(1000);
             packetSequenceNumber = nextPacketSeq();
 
         } catch (IOException e) {
@@ -307,7 +308,7 @@ public class Client extends BaseServer{
         socket.send(sendPacket);
         byte[] ackMessageReceived = new byte[3];
         DatagramPacket receivedPacket = new DatagramPacket(ackMessageReceived, ackMessageReceived.length);
-        socket.setSoTimeout(1000);
+        socket.setSoTimeout(6000);
         socket.receive(receivedPacket);
 
         System.out.println();

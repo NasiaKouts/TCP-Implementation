@@ -1,6 +1,7 @@
 package Server;
 
 import Models.Packet;
+import sun.rmi.server.InactiveGroupException;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -55,7 +56,8 @@ public class Server extends BaseServer{
     public synchronized void run() {
         if (unhandledPackets.isEmpty()) return;
 
-        DatagramPacket inPacket = unhandledPackets.remove(0);
+        DatagramPacket inPacket = unhandledPackets.remove(unhandledPackets.size() - 1);
+        unhandledPackets.clear();
 
         int port = inPacket.getPort();
         InetAddress clientAddress = inPacket.getAddress();
@@ -144,6 +146,8 @@ public class Server extends BaseServer{
                         "\n\t FileName:" + fileName +
                         "\n\t Sedning ACK..." +
                         "\n\t Waiting for the file transfer...");
+                lastSeqNumberReceived.put(clientAddress, packet.getSequenceNumber());
+                sendACK(clientAddress, port);
             }
             //endregion
 
@@ -164,6 +168,8 @@ public class Server extends BaseServer{
                 System.out.println("SERVER: New Packet Received from "
                         + clientAddress.getHostAddress()  +
                         "\n\t Sending ACK...");
+                lastSeqNumberReceived.put(clientAddress, packet.getSequenceNumber());
+                sendACK(clientAddress, port);
             }
             //endregion
 
@@ -173,12 +179,19 @@ public class Server extends BaseServer{
                 System.out.println("SERVER: All packets from "
                         + clientAddress.getHostAddress() + "received! +" +
                         "\n\t File Transferred!");
+                lastSeqNumberReceived.put(clientAddress, packet.getSequenceNumber());
+                sendACK(clientAddress, port);
             }
             //endregion
-            lastSeqNumberReceived.put(clientAddress, packet.getSequenceNumber());
-            sendACK(clientAddress, port);
         }
 
+        ArrayList<Integer> indeces = new ArrayList();
+        for(int i = 0; i < unhandledPackets.size(); i++){
+            if(unhandledPackets.get(i).getAddress().equals(clientAddress)) indeces.add(i);
+        }
+        for(Integer index : indeces){
+            unhandledPackets.remove(index);
+        }
 
 
 /* WAIT FINISH TRANSFER TO CREATE FILE

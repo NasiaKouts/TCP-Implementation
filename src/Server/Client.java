@@ -6,6 +6,9 @@ import Utils.NetworkUtils;
 import java.io.*;
 import java.net.*;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.concurrent.Semaphore;
 
@@ -29,6 +32,7 @@ public class Client extends BaseServer{
         setPayloadSize(payloadSize);
         packetSequenceNumber = (byte)0;
         packetsToSent = new ArrayList<>();
+        setPort(NetworkUtils.GetNextAvailablePort());
 
         this.openServer();
     }
@@ -82,12 +86,19 @@ public class Client extends BaseServer{
         /*
             Create array of bytes to store the file's data
          */
-        File file = new File(getFilename());
+        // TODO GET REAL PATH
+        File file = new File("/d:/desktop/DSC_0409.JPG");
         if(file.exists() && !file.isDirectory()){
 
+            Path path = Paths.get("/d:/desktop/DSC_0409.JPG");
+            byte[] fileDataByteArray = Files.readAllBytes(path);
+        /* todo ??
         InputStream inFromFile = new FileInputStream(file);
         byte[] fileDataByteArray = new byte[(int)file.length()];
         inFromFile.read(fileDataByteArray);
+        */
+
+
 
             /*
                 Save the time before the sending have began
@@ -115,8 +126,9 @@ public class Client extends BaseServer{
                 }
 
                 ByteBuffer packetBytesBuffer = ByteBuffer.allocate(payloadSize + 6);
-                byte[] seq = ByteBuffer.allocate(1).putInt(packetSequenceNumber).array();
-                byte[] flag = ByteBuffer.allocate(1).putInt(!lastPacketFlag ? 0 : 1).array();
+                byte[] seqFlag = new byte[2];
+                seqFlag[0] = packetSequenceNumber;
+                seqFlag[1] = (!lastPacketFlag ? (byte)0 : (byte)1);
                 byte[] payloadSizeSent = ByteBuffer.allocate(4).putInt(payloadSize).array();
 
                 byte[] data = new byte[payloadSize];
@@ -131,8 +143,7 @@ public class Client extends BaseServer{
                     }
                 }
 
-                packetBytesBuffer.put(seq);
-                packetBytesBuffer.put(flag);
+                packetBytesBuffer.put(seqFlag);
                 packetBytesBuffer.put(payloadSizeSent);
                 packetBytesBuffer.put(data);
                 byte[] packetBytesPreCheckSum = packetBytesBuffer.array();
@@ -191,7 +202,7 @@ public class Client extends BaseServer{
     @Override
     public void openServer() {
         try {
-            socket = new DatagramSocket(serverPort);
+            socket = new DatagramSocket(getPort());
         } catch (SocketException e) {
             e.printStackTrace();
         }
@@ -215,7 +226,8 @@ public class Client extends BaseServer{
             dummyPacket[i] = 0;
         }
 
-        System.out.println("Client: First step of 3-way-handshake...");
+        System.out.println("Client: First step of 3-way-handshake..." +
+                "\n\t PACKET Num = " + packetSequenceNumber);
         DatagramPacket sendPacket = new DatagramPacket(dummyPacket, dummyPacket.length, getInetServerAddress(), serverPort);
         while(notReplyToHandshake){
             try {
@@ -228,7 +240,8 @@ public class Client extends BaseServer{
             }
         }
 
-        System.out.println("Client: Last step of 3-way-handshake...");
+        System.out.println("Client: Last step of 3-way-handshake" +
+                    "\n\t Wait a little bit till start sending the file");
         packetSequenceNumber = nextPacketSeq();
         dummyPacket[Packet.SEQ_NUM_INDEX] = packetSequenceNumber;
         sendPacket = new DatagramPacket(dummyPacket, dummyPacket.length, getInetServerAddress(), serverPort);
@@ -249,14 +262,14 @@ public class Client extends BaseServer{
     private void sendFileName(){
         byte [] filenameBytes = filename.getBytes();
 
-        ByteBuffer fileNamePacketBuffer = ByteBuffer.allocate(payloadSize + 6);
-        byte[] seq = ByteBuffer.allocate(1).putInt(packetSequenceNumber).array();
-        byte[] flag = ByteBuffer.allocate(1).putInt(0).array();
+        ByteBuffer fileNamePacketBuffer = ByteBuffer.allocate(filenameBytes.length + 6);
+        byte[] seqFlag = new byte[2];
+        seqFlag[0] = packetSequenceNumber;
+        seqFlag[1] = 0;
         byte[] filenameSize = ByteBuffer.allocate(4).putInt(filenameBytes.length).array();
         byte[] filename = ByteBuffer.allocate(filenameBytes.length).put(filenameBytes).array();
 
-        fileNamePacketBuffer.put(seq);
-        fileNamePacketBuffer.put(flag);
+        fileNamePacketBuffer.put(seqFlag);
         fileNamePacketBuffer.put(filenameSize);
         fileNamePacketBuffer.put(filename);
 
@@ -270,7 +283,11 @@ public class Client extends BaseServer{
         byte[] fileNamePacket = fileNameFinalPacketBuffer.array();
 
         System.out.println("Client: Sending the filename info packet..." +
-                "\n\t Filename: " +filename);
+                "\n\t Filename: " + getFilename() +
+                "\n\t Sequence num: " + packetSequenceNumber +
+                "\n\t Payload: " + filenameBytes.length +
+                "\n\t Checksum: " + checkSum);
+
         DatagramPacket sendPacket = new DatagramPacket(fileNamePacket, fileNamePacket.length, getInetServerAddress(), serverPort);
         boolean notReplyToFilenamePacket = true;
         while(notReplyToFilenamePacket){
@@ -293,6 +310,8 @@ public class Client extends BaseServer{
         socket.setSoTimeout(1000);
         socket.receive(receivedPacket);
 
+        System.out.println();
+        System.out.println("Rceived ACK = " + ackMessageReceived[0] + "   " +  ackMessageReceived[1] + "   " +  ackMessageReceived[2] + "   ");
         ackMessageReceived = receivedPacket.getData();
         return decodeACK(ackMessageReceived);
     }

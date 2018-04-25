@@ -39,8 +39,10 @@ public class Server extends BaseServer{
     private void sendACK(InetAddress address, int port){
         byte[] ackMessage = new byte[3];
         for(int i = 0; i < ackMessage.length; i++){
-            ackMessage[0] = lastSeqNumberReceived.get(address) == 0 ? (byte)1 : (byte)0;
+            ackMessage[i] = lastSeqNumberReceived.get(address) == 0 ? (byte)1 : (byte)0;
         }
+
+        System.out.println("\n\t ACK Number = " + ackMessage[0]);
         DatagramPacket ackPacket = new DatagramPacket(ackMessage, ackMessage.length, address, port);
         try {
             serverSocket.send(ackPacket);
@@ -60,11 +62,12 @@ public class Server extends BaseServer{
         byte[] rawPacket = inPacket.getData();
 
         Packet packet = new Packet(rawPacket, inPacket.getAddress(), port);
+        System.out.println(packet.toString());
 
         //region ------------ CASE:   CORRUPTED PACKET --------------
         // if the packet failed passing validation (corrupted packet) ignore it
         if(!packet.isValid(rawPacket)) {
-            System.out.println("Receiver: Corrupt packet received. \n\t Ignoring this...");
+            System.out.println("Server: Corrupt packet received. \n\t Ignoring this...");
         }
         //endregion
 
@@ -86,7 +89,7 @@ public class Server extends BaseServer{
         // received same packet as the last one, resend the ACK and ignore the packet
         else if(lastSeqNumberReceived.get(clientAddress) == packet.getSequenceNumber()){
             sendACK(clientAddress, port);
-            System.out.println("Receiver: Sent duplicate Ack " +
+            System.out.println("Sever: Sent duplicate Ack " +
                     "after receiving duplicate packet " + packet.getSequenceNumber() +
                     "from " + clientAddress.getHostAddress());
         }
@@ -136,7 +139,7 @@ public class Server extends BaseServer{
                     e.printStackTrace();
                 }
                 //TODO MAKE SURE NO MORE INFO NEEDED TO WRITE IN
-                System.out.println("Receiver: Received first packet informing about the file name" +
+                System.out.println("Server: Received first packet informing about the file name" +
                         "from " + clientAddress.getHostAddress() +
                         "\n\t FileName:" + fileName +
                         "\n\t Sedning ACK..." +

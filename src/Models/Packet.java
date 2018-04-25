@@ -3,6 +3,8 @@ package Models;
 import Utils.NetworkUtils;
 
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.stream.IntStream;
 
 public class Packet {
@@ -41,9 +43,9 @@ public class Packet {
 
         this.notLastPacket = packetByteArray[FLAG_INDEX] == 0x00;
 
-        this.payloadSize = ((packetByteArray[PAYLOAD_SIZE_START_INDEX] & 0xff) << 24) +
-                ((packetByteArray[PAYLOAD_SIZE_START_INDEX + 1] & 0xff) << 16) +
-                ((packetByteArray[PAYLOAD_SIZE_START_INDEX + 2] & 0xff) << 8) +
+        this.payloadSize = ((packetByteArray[PAYLOAD_SIZE_START_INDEX] & 0xff) << 24) |
+                ((packetByteArray[PAYLOAD_SIZE_START_INDEX + 1] & 0xff) << 16) |
+                ((packetByteArray[PAYLOAD_SIZE_START_INDEX + 2] & 0xff) << 8) |
                 (packetByteArray[PAYLOAD_SIZE_START_INDEX + 3] & 0xff);
 
         this.data = new byte[payloadSize];
@@ -52,6 +54,9 @@ public class Packet {
                 .parallel()
                 .forEach(index -> data[index] = packetByteArray[PAYLOAD_START_INDEX + index]);
 
+        /*byte[] destArr = new byte[8];
+        System.arraycopy(packetByteArray, PAYLOAD_START_INDEX + payloadSize, destArr, 0, 8);
+        this.checksum = destArr; */
         this.checksum = ((long)(packetByteArray[PAYLOAD_START_INDEX + payloadSize] & 0x00ff) << 56) +
                 ((long)(packetByteArray[PAYLOAD_START_INDEX + payloadSize + 1] & 0x00ff) << 48) +
                 ((long)(packetByteArray[PAYLOAD_START_INDEX + payloadSize + 2] & 0x00ff) << 40) +
@@ -137,13 +142,27 @@ public class Packet {
         for(int i = 0; i < realPacket.length; i++){
             realPacket[i] = rawPacket[i];
         }
-        return NetworkUtils.calculateCheckSum(realPacket) == checksum;
+        long current = NetworkUtils.calculateCheckSum(realPacket);
+        //byte[] currenctCheckSum = ByteBuffer.allocate(8).putLong(current).array();
 
+        System.out.println("Calculated checksum: " + current +
+                    "\n Received checksum: " + checksum);
+        //return Arrays.equals(currenctCheckSum, checksum);
+        return current == checksum;
         /*
             If using CRC
             CRC32 checkSumCalculated = new CRC32();
 			checkSumCalculated.update(realPacket);
 			return checkSumCalculated == checksum;
          */
+    }
+
+    @Override
+    public String toString() {
+        return "PACKET INFO " +
+                "\nSEQ = " + sequenceNumber +
+                "\nFLAG = " + notLastPacket +
+                "\nPAYLOAD SIZE = " + payloadSize +
+                "\nCHECKSUM = " + checksum;
     }
 }

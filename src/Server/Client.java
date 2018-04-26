@@ -164,12 +164,14 @@ public class Client extends BaseServer{
 
             //Sending Client ACK
             if(result == SEND_NEXT){
+                System.out.println("Received server's ACK of the 3-Way-Handshake!");
                 dummyPacket[0] = lastPacketSeq;
                 try {
                     packetToSent = new DatagramPacket(dummyPacket, dummyPacket.length, getInetServerAddress(), serverPort);
                     sendPacketNoListen(packetToSent);
-                    lastPacketSeq = NetworkUtils.calculateNextSeqNumber(lastPacketSeq);
-                    Thread.sleep(1000);
+                    System.out.println("Sent my ACK back 3-Way-Handshake!");
+                    // reset SEQ
+                    lastPacketSeq = 0;
                     reSend = false;
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -286,7 +288,7 @@ public class Client extends BaseServer{
                 System.out.println("------------------------------------");
             }
             // If the ACK is not for the corresponding packet, thus means probably the packet lost, so retransmit it
-            else if(ackDecoded != lastPacketSeq){
+            else if(ackDecoded == lastPacketSeq){
                 System.out.println("------------------------------------");
                 System.out.println("Not correct Ack Number Error");
                 System.out.println("------------------------------------");

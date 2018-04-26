@@ -215,11 +215,14 @@ public class Server extends BaseServer{
                 System.out.println("Packet Seq == " + packetReceived.getSequenceNumber());
                 System.out.println("Seq Expecting == " + seqExpecting);
 
+                // first time after handshare reset seqExcpecting
+                if(seqExpecting == -1) seqExpecting = packetReceived.getSequenceNumber();
 
                 // If it is RETRANSMISSION continue to next iteration of the loop after sending duplicate ACK
                 if(packetReceived.getSequenceNumber() != seqExpecting){
                     System.out.println("The retransmitted packet has been dropped");
                     System.out.println("Send Duplicate ACK");
+                    System.out.println("******************************");
                     System.out.println("******************************");
                     System.out.println("");
                     sendACK();
@@ -236,8 +239,8 @@ public class Server extends BaseServer{
                     System.out.println("");
                     handshakeInComplete = false;
 
-                    seqExpecting = NetworkUtils.calculateNextSeqNumber(seqExpecting);
-                    System.out.println("New Seq Expecting: "+seqExpecting);
+                    seqExpecting = -1;
+                    System.out.println("ResetSeqNumber " + seqExpecting);
                     continue;
                 }
 

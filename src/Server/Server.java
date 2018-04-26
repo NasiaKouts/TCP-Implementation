@@ -16,7 +16,6 @@ public class Server extends BaseServer{
     private static final int MAX_PACKET_SIZE = 65509;
     private static int timeOut = 300;
 
-    private static HashMap<InetAddress, Integer> handshakeStarted = new HashMap<>();
 
     /* Define the socket that receives requests */
     protected DatagramSocket inServerSocket;
@@ -67,7 +66,6 @@ public class Server extends BaseServer{
 
             // If the we havent received the initialize handshake packet from this client
             if(packetReceived.getFlag() != Packet.NO_DATA_FILE) {
-                handshakeStarted.put(packetReceived.getAddress(), 1);
                 System.out.println("------------------------------------");
                 System.out.println("Client tried to send data without handshaking first!");
                 System.out.println("Ignoring this...");
@@ -76,7 +74,6 @@ public class Server extends BaseServer{
             }
 
             try {
-
                 // create a new socket with the same IP but different port for the server
                 int newPort = NetworkUtils.GetNextAvailablePort();
                 DatagramSocket threadSocket = new DatagramSocket(newPort);
@@ -132,7 +129,6 @@ public class Server extends BaseServer{
 
         private int clientId;
         private int counter = 0;
-        private int port;
         private boolean handshakeInComplete = true;
         private String fileName = null;
         private File outFile = null;
@@ -148,7 +144,6 @@ public class Server extends BaseServer{
             this.clientAddress = clientAddress;
             this.clientPort = clientPort;
             this.clientId = ++counter;
-            this.port = socket.getPort();
 
             System.out.println("******************************");
             System.out.println("New Thread Listening No: " + counter);
@@ -424,9 +419,6 @@ public class Server extends BaseServer{
 
                 handleAcceptedPacket(packetReceived);
             }
-
-            // Make sure removing him from the handshake list in order to have to handshake again if he wants to send another file
-            handshakeStarted.remove(clientAddress);
 
             System.out.println("Closing Communication with client: " + counter + "...");
             socket.close();

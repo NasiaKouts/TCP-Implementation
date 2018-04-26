@@ -92,4 +92,14 @@ public class NetworkUtils {
         sum = sum & 0xFFFF;
         return sum;
     }
+
+    /**
+     * Calculate next sequence number when using only 1 bit for SEQ number
+     * @param currentSeqNumber
+     * @return the next sequence number, 1 if param == 0
+     *                                   0 if param == 1
+     */
+    public static byte calculateNextSeqNumber(byte currentSeqNumber){
+        return currentSeqNumber == (byte)0 ? (byte)1 : (byte)0;
+    }
 }

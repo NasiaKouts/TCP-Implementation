@@ -31,13 +31,13 @@ public class ClientSpawner {
                 System.out.println("Set the payload size");
                 int payloadSize = Integer.parseInt(in.readLine());
 
-                new Client(serverIp, serverPort, filename, filePath, payloadSize);
+                new Client(serverIp, serverPort, filename, filePath, payloadSize, null);
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
         else {
-            new Client(args[0], Integer.parseInt(args[1]), args[2], args[3], Integer.parseInt(args[4]));
+            new Client(args[0], Integer.parseInt(args[1]), args[2], args[3], Integer.parseInt(args[4]), null);
         }
     }
 }

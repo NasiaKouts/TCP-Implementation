@@ -133,7 +133,7 @@ public class Server extends BaseServer{
             System.out.println("Received the first step of the 3-Way-Handshake! SEQ = " + seq);
             SecondPartHandshake();
         }
-
+        DatagramPacket ackPacket;
 
         public void SecondPartHandshake(){
             System.out.println("Starting the second step of the 3-Way-Handshake! (Send ACK)");
@@ -144,7 +144,7 @@ public class Server extends BaseServer{
                 ackMessage[i] = seqExpecting;
             }
 
-            DatagramPacket ackPacket = new DatagramPacket(ackMessage, ackMessage.length, clientAddress, clientPort);
+            ackPacket = new DatagramPacket(ackMessage, ackMessage.length, clientAddress, clientPort);
             try {
                 socket.send(ackPacket);
                 System.out.println("******************************");
@@ -215,9 +215,6 @@ public class Server extends BaseServer{
                 System.out.println("Packet Seq == " + packetReceived.getSequenceNumber());
                 System.out.println("Seq Expecting == " + seqExpecting);
 
-                // first time after handshare reset seqExcpecting
-                if(seqExpecting == -1) seqExpecting = packetReceived.getSequenceNumber();
-
                 // If it is RETRANSMISSION continue to next iteration of the loop after sending duplicate ACK
                 if(packetReceived.getSequenceNumber() != seqExpecting){
                     System.out.println("The retransmitted packet has been dropped");
@@ -239,7 +236,7 @@ public class Server extends BaseServer{
                     System.out.println("");
                     handshakeInComplete = false;
 
-                    seqExpecting = -1;
+                    seqExpecting = 0;
                     System.out.println("ResetSeqNumber " + seqExpecting);
                     continue;
                 }

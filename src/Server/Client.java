@@ -81,36 +81,9 @@ public class Client extends BaseServer{
 
         byte[] filenameBytes = filename.getBytes();
 
-        ByteBuffer fileNamePacketBuffer = ByteBuffer.allocate(filenameBytes.length + 6);
-        byte[] seqFlag = new byte[2];
-        seqFlag[0] = lastPacketSeq;
-        seqFlag[1] = 0;
-        byte[] filenameSize = ByteBuffer.allocate(4).putInt(filenameBytes.length).array();
-        byte[] filename = ByteBuffer.allocate(filenameBytes.length).put(filenameBytes).array();
-
-        fileNamePacketBuffer.put(seqFlag);
-        fileNamePacketBuffer.put(filenameSize);
-        fileNamePacketBuffer.put(filename);
-
-        byte[] filenamePacketPreCheckSum = fileNamePacketBuffer.array();
-        long checkSum = NetworkUtils.calculateCheckSum(filenamePacketPreCheckSum);
-
-        ByteBuffer fileNameFinalPacketBuffer = ByteBuffer.allocate(filenamePacketPreCheckSum.length + 8);
-        fileNameFinalPacketBuffer.put(filenamePacketPreCheckSum);
-        fileNameFinalPacketBuffer.putLong(checkSum);
-
-        byte[] fileNamePacket = fileNameFinalPacketBuffer.array();
-
-        System.out.println("Client: Sending the filename info packet..." +
-                "\n\t Filename: " + getFilename() +
-                "\n\t Sequence num: " + lastPacketSeq +
-                "\n\t Payload: " + filenameBytes.length +
-                "\n\t Checksum: " + checkSum);
-
-        payloadsToSent.put(-1, fileNamePacket);
+        payloadsToSent.put(-1, filenameBytes);
 
         //endregion
-
         for(int i = 0; i <= fullSteps; i++){
             int startIndex = i * payloadSize;
             int bytesLength = payloadSize;
@@ -171,7 +144,7 @@ public class Client extends BaseServer{
                     sendPacketNoListen(packetToSent);
                     System.out.println("Sent my ACK back 3-Way-Handshake!");
                     // reset SEQ
-                    lastPacketSeq = 0;
+                    lastPacketSeq = -1;
                     reSend = false;
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -181,6 +154,7 @@ public class Client extends BaseServer{
         }
         System.out.println("Strating to Send The File!");
 
+        if(lastPacketSeq == -1) lastPacketSeq = 0;
         for(int key : payloadsToSent.keySet()){
             try {
                 System.out.println("Strating to Send The File!");
@@ -188,6 +162,7 @@ public class Client extends BaseServer{
 
                 int result = sendPacket(filePartToSend);
                 while (result != SEND_NEXT){
+                    filePartToSend = createPacket(key);
                     result = sendPacket(filePartToSend);
                 }
             } catch (IOException e) {
@@ -249,7 +224,7 @@ public class Client extends BaseServer{
             try {
                 try {
                     packetSocket.setSoTimeout(10000);
-                    System.out.println("Sent timeout");
+                    //System.out.println("Sent timeout");
                 } catch (SocketException e) {
                     e.printStackTrace();
                     System.out.println("------------------------------------");

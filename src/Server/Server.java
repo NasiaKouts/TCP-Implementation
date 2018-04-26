@@ -255,6 +255,21 @@ public class Server extends BaseServer{
                 byte[] inPacket = new byte[MAX_PACKET_SIZE];
                 System.out.println("WHILE LISTEN SERVER");
                 DatagramPacket inDatagramPacket = new DatagramPacket(inPacket, MAX_PACKET_SIZE);
+
+                try {
+                    System.out.println(socket.getLocalPort());
+                    socket.receive(inDatagramPacket);
+                    System.out.println("******************************");
+                    System.out.println("A Packet Received by client no: " + clientId);
+                    System.out.println("******************************");
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    System.out.println("------------------------------------");
+                    System.out.println("packetSocket.receive(inDatagramPacket) Error");
+                    System.out.println("------------------------------------");
+                    continue;
+                }
+
                 // In case the packet is CORRUPT continue to next iteration of the loop
                 Packet packetReceived = handleReceivingPacket(inDatagramPacket);
                 if (packetReceived == null) {

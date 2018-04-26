@@ -21,6 +21,7 @@ public class Client extends BaseServer{
     private String filename;
     private String fileDir;
     private int payloadSize;
+    private boolean gotNewServerPort = false;
 
     boolean notFinished = true;
     boolean handshakeIncomplete = true;
@@ -226,8 +227,10 @@ public class Client extends BaseServer{
                 return UNABLE_TO_RESUME;
             }
 
+            int sizeOfRecieved = 3;
+            if(handshakeIncomplete)  sizeOfRecieved = 7;
             // packet sent, waiting for ACK
-            byte[] ackReceived = new byte[3];
+            byte[] ackReceived = new byte[sizeOfRecieved];
             DatagramPacket ackReceivedPacket = new DatagramPacket(ackReceived, ackReceived.length);
             try {
                 try {
@@ -244,9 +247,6 @@ public class Client extends BaseServer{
                 packetSocket.receive(ackReceivedPacket);
                 ackReceived = ackReceivedPacket.getData();
 
-
-                serverPort = ackReceivedPacket.getPort();
-
                 System.out.println("******************************");
                 System.out.println("A ACK Received by Server");
                 System.out.println("ACK = " + ackReceived[0] + "\t" + ackReceived[1] + "\t" + ackReceived[2]);
@@ -262,8 +262,30 @@ public class Client extends BaseServer{
                 continue;
             }
 
+            byte[] acks = new byte[3];
+            if(!gotNewServerPort) {
 
-            byte ackDecoded = decodeACK(ackReceived);
+                byte[] serverNewPort = new byte[4];
+                int j = 0;
+                for(int i=0; i<ackReceived.length; i++){
+                    if(i < acks.length) acks[i] = ackReceived[i];
+                    else {
+                        serverNewPort[j] = ackReceived[i];
+                        j++;
+                    }
+                }
+
+                //byte array to int
+                serverPort = ((serverNewPort[0] & 0xff) << 24) |
+                        ((serverNewPort[1] & 0xff) << 16) |
+                        ((serverNewPort[2] & 0xff) << 8) |
+                        (serverNewPort[3] & 0xff);
+                gotNewServerPort = true;
+            }
+            else {
+                acks = ackReceived;
+            }
+            byte ackDecoded = decodeACK(acks);
             // If there was error in the transmitted ACK, Retransmit packet
             if(ackDecoded == ERROR_IN_ACK) {
                 System.out.println("------------------------------------");
@@ -363,7 +385,7 @@ public class Client extends BaseServer{
         packetBytes.putLong(checkSum);
 
         byte[] packet = packetBytes.array();
-        return new DatagramPacket(packet, packet.length, InetAddress.getByName(serverIp), getPort());
+        return new DatagramPacket(packet, packet.length, InetAddress.getByName(serverIp), serverPort);
 
         /*
         CRC32 checksum = new CRC32();

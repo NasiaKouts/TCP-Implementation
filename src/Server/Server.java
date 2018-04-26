@@ -8,6 +8,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.*;
+import java.nio.ByteBuffer;
 
 public class Server extends BaseServer{
 
@@ -64,9 +65,10 @@ public class Server extends BaseServer{
             try {
 
                 // create a new socket with the same IP but different port for the server
-                DatagramSocket threadSocket = new DatagramSocket(NetworkUtils.GetNextAvailablePort());
+                int newPort = NetworkUtils.GetNextAvailablePort();
+                DatagramSocket threadSocket = new DatagramSocket(newPort);
 
-                new ServerClientThread(packetReceived.getSequenceNumber(), threadSocket,
+                new ServerClientThread(packetReceived.getSequenceNumber(), threadSocket, newPort,
                         inDatagramPacket.getAddress(), inDatagramPacket.getPort())
                         .start();
             } catch (SocketException e) {
@@ -108,6 +110,7 @@ public class Server extends BaseServer{
 
     public class ServerClientThread extends Thread {
         private DatagramSocket socket;
+        private int inPort;
         private int clientPort;
         private InetAddress clientAddress;
         private byte seqExpecting;
@@ -122,9 +125,10 @@ public class Server extends BaseServer{
         private boolean listenForMore = true;
 
         // ServerClientThread constructor
-        public ServerClientThread(byte seq, DatagramSocket socket, InetAddress clientAddress, int clientPort) {
+        public ServerClientThread(byte seq, DatagramSocket socket, int newPortIn, InetAddress clientAddress, int clientPort) {
             this.seqExpecting = NetworkUtils.calculateNextSeqNumber(seq);
             this.socket = socket;
+            this.inPort = newPortIn;
             this.clientAddress = clientAddress;
             this.clientPort = clientPort;
             this.clientId = ++counter;
@@ -132,6 +136,7 @@ public class Server extends BaseServer{
 
             System.out.println("******************************");
             System.out.println("New Thread Listening No: " + counter);
+            System.out.println("Listening to port: " + inPort);
             System.out.println("For client " + clientAddress.getHostAddress());
             System.out.println("");
             System.out.println("Received the first step of the 3-Way-Handshake! SEQ = " + seq);
@@ -141,7 +146,7 @@ public class Server extends BaseServer{
         DatagramPacket ackPacket;
 
         public void SecondPartHandshake() {
-            System.out.println("Starting the second step of the 3-Way-Handshake! (Send ACK)");
+            System.out.println("Starting the second step of the 3-Way-Handshake! (Send ACK with my new Port server)");
             System.out.println("******************************");
 
             byte[] ackMessage = new byte[3];
@@ -149,7 +154,14 @@ public class Server extends BaseServer{
                 ackMessage[i] = seqExpecting;
             }
 
-            ackPacket = new DatagramPacket(ackMessage, ackMessage.length, clientAddress, clientPort);
+            ByteBuffer ackWithNewPort = ByteBuffer.allocate(7);
+            byte[] newPortByteArray = ByteBuffer.allocate(4).putInt(inPort).array();
+            ackWithNewPort.put(ackMessage);
+            ackWithNewPort.put(newPortByteArray);
+
+            byte[] message = ackWithNewPort.array();
+
+            ackPacket = new DatagramPacket(message, message.length, clientAddress, clientPort);
             try {
                 socket.send(ackPacket);
                 System.out.println("******************************");

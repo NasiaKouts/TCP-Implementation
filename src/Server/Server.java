@@ -137,14 +137,15 @@ public class Server extends BaseServer{
             System.out.println("Received the first step of the 3-Way-Handshake! SEQ = " + seq);
             SecondPartHandshake();
         }
+
         DatagramPacket ackPacket;
 
-        public void SecondPartHandshake(){
+        public void SecondPartHandshake() {
             System.out.println("Starting the second step of the 3-Way-Handshake! (Send ACK)");
             System.out.println("******************************");
 
             byte[] ackMessage = new byte[3];
-            for(int i = 0; i < ackMessage.length; i++){
+            for (int i = 0; i < ackMessage.length; i++) {
                 ackMessage[i] = seqExpecting;
             }
 
@@ -164,15 +165,13 @@ public class Server extends BaseServer{
         }
 
 
-
-
         /*
             The server sends back to the client an ACK with the SEQ number of the packet he expects next
             ACK messages contain the ACK triple times in order to be able to detect error in transition
         */
-        private void sendACK(){
+        private void sendACK() {
             byte[] ackMessage = new byte[3];
-            for(int i = 0; i < ackMessage.length; i++){
+            for (int i = 0; i < ackMessage.length; i++) {
                 ackMessage[i] = seqExpecting;
             }
 
@@ -191,10 +190,8 @@ public class Server extends BaseServer{
             }
         }
 
-        @Override
-        public void run() {
-            System.out.println("Got in run");
-            while(listenForMore){
+        private void handshakeInComplete() {
+            while (handshakeInComplete) {
                 byte[] inPacket = new byte[MAX_PACKET_SIZE];
                 System.out.println("WHILE LISTEN SERVER");
                 DatagramPacket inDatagramPacket = new DatagramPacket(inPacket, MAX_PACKET_SIZE);
@@ -215,12 +212,15 @@ public class Server extends BaseServer{
 
                 // In case the packet is CORRUPT continue to next iteration of the loop
                 Packet packetReceived = handleReceivingPacket(inDatagramPacket);
-                if(packetReceived == null) continue;
+                if (packetReceived == null) {
+                    System.out.println("CORRUPTED");
+                    continue;
+                }
                 System.out.println("Packet Seq == " + packetReceived.getSequenceNumber());
                 System.out.println("Seq Expecting == " + seqExpecting);
 
                 // If it is RETRANSMISSION continue to next iteration of the loop after sending duplicate ACK
-                if(packetReceived.getSequenceNumber() != seqExpecting){
+                if (packetReceived.getSequenceNumber() != seqExpecting) {
                     System.out.println("The retransmitted packet has been dropped");
                     System.out.println("Send Duplicate ACK");
                     System.out.println("******************************");
@@ -232,28 +232,59 @@ public class Server extends BaseServer{
 
                 // If it is the Client's ACK -> 3rd pard of the 3-Way-Handshake
                 // simple update the handshake state and the seq number expecting
-                if(handshakeInComplete) {
-                    System.out.println("Received Client's ACK, the 3rd part of the 3-Way-Handshake");
-                    System.out.println("No Ack Sending. Simply waiting the file transfer...");
-                    System.out.println("3-Way-Handshake Completed!!!");
+
+                System.out.println("Received Client's ACK, the 3rd part of the 3-Way-Handshake");
+                System.out.println("No Ack Sending. Simply waiting the file transfer...");
+                System.out.println("3-Way-Handshake Completed!!!");
+                System.out.println("******************************");
+                System.out.println("");
+                handshakeInComplete = false;
+
+                seqExpecting = 0;
+                System.out.println("ResetSeqNumber " + seqExpecting);
+            }
+        }
+
+        @Override
+        public void run() {
+            System.out.println("Got in run");
+            handshakeInComplete();
+            boolean notLastPacket = true;
+            boolean firstPacket = true;
+            while (notLastPacket) {
+                byte[] inPacket = new byte[MAX_PACKET_SIZE];
+                System.out.println("WHILE LISTEN SERVER");
+                DatagramPacket inDatagramPacket = new DatagramPacket(inPacket, MAX_PACKET_SIZE);
+                // In case the packet is CORRUPT continue to next iteration of the loop
+                Packet packetReceived = handleReceivingPacket(inDatagramPacket);
+                if (packetReceived == null) {
+                    System.out.println("CORRUPTED");
+                    continue;
+                }
+                System.out.println("Packet Seq == " + packetReceived.getSequenceNumber());
+                System.out.println("Seq Expecting == " + seqExpecting);
+
+                // If it is RETRANSMISSION continue to next iteration of the loop after sending duplicate ACK
+                if (packetReceived.getSequenceNumber() != seqExpecting) {
+                    System.out.println("The retransmitted packet has been dropped");
+                    System.out.println("Send Duplicate ACK");
+                    System.out.println("******************************");
                     System.out.println("******************************");
                     System.out.println("");
-                    handshakeInComplete = false;
-
-                    seqExpecting = 0;
-                    System.out.println("ResetSeqNumber " + seqExpecting);
+                    sendACK();
                     continue;
                 }
 
                 // If the packet is the first packet received after the Handshake completion
                 // it is transferring only the name of the file
-                if(fileName == null){
+                if (firstPacket) {
                     fileName = new String(packetReceived.getData());
                     System.out.println("Received the FileName: " + fileName);
                     System.out.println("******************************");
                     System.out.println("");
                     seqExpecting = NetworkUtils.calculateNextSeqNumber(seqExpecting);
                     sendACK();
+                    firstPacket = false;
 
                     //region CREATE FILE
                     outFile = new File(fileName);
@@ -266,49 +297,46 @@ public class Server extends BaseServer{
                         }
                     }
                     //endregion
-
-                    continue;
-                }
-
-                // If the packet simple data of the file being transferred
-                //region WRITE PACKET DATA TO FILE
-                if(outFile != null){
-                    FileOutputStream saltOutFile = null;
-                    try {
-                        saltOutFile = new FileOutputStream(outFile, true);
-                    } catch (FileNotFoundException e) {
-                        e.printStackTrace();
+                } else {
+                    // If the packet simple data of the file being transferred
+                    //region WRITE PACKET DATA TO FILE
+                    if (outFile != null) {
+                        FileOutputStream saltOutFile = null;
+                        try {
+                            saltOutFile = new FileOutputStream(outFile, true);
+                        } catch (FileNotFoundException e) {
+                            e.printStackTrace();
+                        }
+                        try {
+                            saltOutFile.write(packetReceived.getData());
+                        } catch (IOException e) {
+                            System.out.println("ERROR FILE WRITE");
+                            e.printStackTrace();
+                        }
+                        try {
+                            saltOutFile.close();
+                        } catch (IOException e) {
+                            System.out.println("ERROR TRYING TO CLOSE THE FILE");
+                            e.printStackTrace();
+                        }
                     }
-                    try {
-                        saltOutFile.write(packetReceived.getData());
-                    } catch (IOException e) {
-                        System.out.println("ERROR FILE WRITE");
-                        e.printStackTrace();
-                    }
-                    try {
-                        saltOutFile.close();
-                    } catch (IOException e) {
-                        System.out.println("ERROR TRYING TO CLOSE THE FILE");
-                        e.printStackTrace();
-                    }
-                }
-                //endregion
-                seqExpecting = NetworkUtils.calculateNextSeqNumber(seqExpecting);
-                sendACK();
+                    //endregion
+                    seqExpecting = NetworkUtils.calculateNextSeqNumber(seqExpecting);
+                    sendACK();
 
-                if(packetReceived.isNotLastPacket()){
-                    System.out.println("Write file data to file");
-                    System.out.println("******************************");
-                    System.out.println("");
-                }
-                else{
-                    listenForMore = false;
-                    System.out.println("File Transfer Completed!");
-                    System.out.println("******************************");
-                    System.out.println("");
+                    if (packetReceived.isNotLastPacket()) {
+                        System.out.println("Write file data to file");
+                        System.out.println("******************************");
+                        System.out.println("");
+                    } else {
+                        listenForMore = false;
+                        System.out.println("File Transfer Completed!");
+                        System.out.println("******************************");
+                        System.out.println("");
+                        notLastPacket = false;
+                    }
                 }
             }
-
             System.out.println("Closing Communication with client: " + counter + "...");
             socket.close();
         }

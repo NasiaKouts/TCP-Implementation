@@ -76,9 +76,7 @@ public class Client extends BaseServer{
                 System.out.println("------------------------------------");
 
             }
-            while(notFinished){
-                handShake();
-            }
+            handShake();
         } catch (IOException e) {
             e.printStackTrace();
         }

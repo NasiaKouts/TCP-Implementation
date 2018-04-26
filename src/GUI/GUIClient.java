@@ -10,33 +10,15 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
 
-public class GUISpawner {
-    private  JFrame window;
+public class GUIClient {
     private JPanel serverPanel;
     private JPanel clientPanel;
-
-    private JLabel serverHeaderLabel;
-    private JLabel clientHeaderLabel;
 
     private JPanel serverControlPanel;
     private JPanel clientControlPanel;
 
     private JTextArea serverTextArea;
     private JTextArea clientTextArea;
-
-    private JScrollPane serverScrollPane;
-    private JScrollPane clientScrollPane;
-
-    // Text to display above the text fields
-    private JLabel ipServerText;
-    private JLabel ipClientText;
-    private JLabel payloadText;
-
-    private JLabel serverPortText;
-    private JLabel clientPortText;
-
-
-    private JButton fileButton;
 
     // Used for storage of the input
     private JTextField ipServerAddressField;
@@ -48,23 +30,20 @@ public class GUISpawner {
 
     private JTextField payloadSize;
 
-    private String FilePath;
-    private String FileName;
+    private String filePath;
+    private String fileName;
 
-    // The final variables. THEY NEED TO BE CHECKED IF THEY ARE CORRECT!
-    private String finalIp = "", finalPort = "";
+    private String finalIp = "";
+    private String finalPort = "";
 
-    public GUISpawner(){
-        prepareGUI();
-    }
+    private Thread serverThread;
 
     public static void main(String[] args){
-        GUISpawner clientView = new GUISpawner();
-        //clientView.initServer();
+        new GUIClient();
     }
 
-    private void prepareGUI(){
-        window = new JFrame("Server");
+    private GUIClient(){
+        JFrame window = new JFrame("Server");
         window.setSize(350,400);
         window.addWindowListener(new WindowAdapter() {
             public void windowClosing(WindowEvent windowEvent){
@@ -72,10 +51,8 @@ public class GUISpawner {
             }
         });
 
-
         JTabbedPane tabbedPane = new JTabbedPane();
         window.add(tabbedPane);
-
 
         serverPanel = createServerPanel();
         tabbedPane.addTab("Server",serverPanel);
@@ -85,7 +62,6 @@ public class GUISpawner {
         initClient();
 
         window.setVisible(true);
-
     }
 
     private JPanel createClientPanel(){
@@ -93,7 +69,7 @@ public class GUISpawner {
 
         clientPanel.setLayout(new FlowLayout(FlowLayout.LEFT));
         clientPanel.setLayout(new GridLayout(3, 1));
-        clientHeaderLabel = new JLabel("",JLabel.CENTER );
+        JLabel clientHeaderLabel = new JLabel("", JLabel.CENTER);
         clientHeaderLabel.setText("Initialize the client");
 
         clientControlPanel = new JPanel();
@@ -104,13 +80,12 @@ public class GUISpawner {
         return clientPanel;
     }
 
-
     private JPanel createServerPanel(){
         JPanel serverPanel = new JPanel();
 
         serverPanel.setLayout(new FlowLayout(FlowLayout.LEFT));
         serverPanel.setLayout(new GridLayout(3, 1));
-        serverHeaderLabel = new JLabel("",JLabel.CENTER );
+        JLabel serverHeaderLabel = new JLabel("", JLabel.CENTER);
         serverHeaderLabel.setText("Initialize the server");
 
         serverControlPanel = new JPanel();
@@ -129,7 +104,7 @@ public class GUISpawner {
         clientTextArea.setRows(5);
         clientTextArea.setWrapStyleWord(true);
         clientTextArea.setEditable(false);
-        clientScrollPane = new JScrollPane(clientTextArea);
+        JScrollPane clientScrollPane = new JScrollPane(clientTextArea);
         clientScrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
 
         JFileChooser chooser = new JFileChooser();
@@ -154,9 +129,9 @@ public class GUISpawner {
 
         payloadSize = new JTextField("",20);
 
-        ipClientText = new JLabel("Server IP   ");
-        clientPortText = new JLabel("Server Port");
-        payloadText = new JLabel("Packet Size");
+        JLabel ipClientText = new JLabel("Server IP   ");
+        JLabel clientPortText = new JLabel("Server Port");
+        JLabel payloadText = new JLabel("Packet Size");
 
         //JFileChooser chooser = new JFileChooser();
         clientControlPanel.add(ipClientText);
@@ -186,7 +161,7 @@ public class GUISpawner {
         serverTextArea.setRows(5);
         serverTextArea.setWrapStyleWord(true);
         serverTextArea.setEditable(false);
-        serverScrollPane = new JScrollPane(serverTextArea);
+        JScrollPane serverScrollPane = new JScrollPane(serverTextArea);
         serverScrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
 
         ipServerAddressField = new JTextField("",20);
@@ -199,18 +174,22 @@ public class GUISpawner {
         serverPortNumberInput.addActionListener(new InformationListener());
 
         JButton submitButton = new JButton("Start");
-
         submitButton.setActionCommand("SubmitServer");
         submitButton.addActionListener(new InformationListener());
 
+        JButton stopButton = new JButton("Stop");
+        stopButton.setActionCommand("StopServer");
+        stopButton.addActionListener(new InformationListener());
 
-        ipServerText = new JLabel("IP Address   ");
-        serverPortText = new JLabel("Port Number");
+        // Text to display above the text fields
+        JLabel ipServerText = new JLabel("IP Address");
+        JLabel serverPortText = new JLabel("Port Number");
         serverControlPanel.add(ipServerText);
         serverControlPanel.add(ipServerAddressField);
         serverControlPanel.add(serverPortText);
         serverControlPanel.add(serverPortNumberInput);
         serverControlPanel.add(submitButton);
+        serverControlPanel.add(stopButton);
         serverPanel.add(serverScrollPane);
     }
 
@@ -218,67 +197,74 @@ public class GUISpawner {
         public void actionPerformed(ActionEvent e) {
             String command = e.getActionCommand();
 
-            if( command.equals( "IP" ))  {
-                finalIp = ipServerAddressField.getText();
-            } else if( command.equals( "PORT" ) )  {
-                finalPort = serverPortNumberInput.getText();
-            } else if(command.equals("SubmitServer")){
-                finalIp = ipServerAddressField.getText();
-                finalPort = serverPortNumberInput.getText();
-                try{
-                    // Initialize the server
-                    new Thread(() -> {
-                        new Server(finalIp, Integer.parseInt(finalPort));
-                    }).start();
+            switch (command) {
+                case "IP":
+                    finalIp = ipServerAddressField.getText();
+                    break;
+                case "PORT":
+                    finalPort = serverPortNumberInput.getText();
+                    break;
+                case "SubmitServer":
+                    finalIp = ipServerAddressField.getText();
+                    finalPort = serverPortNumberInput.getText();
+                    try {
+                        // Initialize the server
+                        if(serverThread != null) return;
 
-                    // try to open the server
+                        serverThread = new Thread(() -> new Server(finalIp, Integer.parseInt(finalPort), serverTextArea));
+                        serverThread.start();
 
-                    // Success
-                    serverTextArea.append("Server Opened!\n");
-                }catch (NumberFormatException exc){
-                    // Display the proper exception
-                    serverTextArea.append("Wrong port Input!");
+                        serverTextArea.append("Server Opened!\n");
+                    } catch (Exception ex) {
+                        serverTextArea.append("Wrong port Input!");
 
-                    // Empty the fields
-                    ipServerAddressField.setText("");
-                    serverPortNumberInput.setText("");
-                }
-            }else if(command.equals("SubmitClient")){
+                        ipServerAddressField.setText("");
+                        serverPortNumberInput.setText("");
+                    }
+                    break;
+                case "StopServer":
+                    if(serverThread == null) return;
 
-                finalIp = ipClientAddressField.getText();
-                finalPort = clientPortNumberInput.getText();
-                String payload = payloadSize.getText();
+                    serverThread.interrupt();
+                    serverThread = null;
+                    serverTextArea.append("\nServer Interrupted!");
+                    break;
+                case "SubmitClient":
+                    finalIp = ipClientAddressField.getText();
+                    finalPort = clientPortNumberInput.getText();
+                    String payload = payloadSize.getText();
 
-                try{
-                    // Initialize the server
-                    new Thread(() -> {
-                        new Client("localhost", Integer.parseInt(finalPort), FileName, FilePath, Integer.parseInt(payload));
-                    }).start();
+                    try {
+                        new Thread(() ->
+                            new Client(finalIp,
+                                    Integer.parseInt(finalPort),
+                                    fileName,
+                                    filePath,
+                                    Integer.parseInt(payload),
+                                    clientTextArea))
+                            .start();
 
-                    // try to open the server
 
-                    // Success
-                    clientTextArea.append("Client Opened!\n");
-                }catch (NumberFormatException exc){
-                    // Display the proper exception
-                    clientTextArea.append("Wrong port Input!");
+                        clientTextArea.append("Client Opened!\n");
+                    } catch (Exception ex) {
+                        clientTextArea.append("Wrong port Input!");
 
-                    // Empty the fields
-                    ipClientAddressField.setText("");
-                    clientPortNumberInput.setText("");
-                }
-            } else if(command.equals("File")){
-                System.out.println("Got here");
-                JFileChooser chooser = new JFileChooser();
-                int option = chooser.showOpenDialog(clientPanel); // parentComponent must a component like JFrame, JDialog...
-                if(option == JFileChooser.APPROVE_OPTION){
-                    File selectedFile = chooser.getSelectedFile();
-                    FilePath = selectedFile.getParent();
-                    FileName = selectedFile.getName();
-                    clientTextArea.setText("File Found!");
-                }else{
+                        ipClientAddressField.setText("");
+                        clientPortNumberInput.setText("");
+                    }
+                    break;
+                case "File":
+                    System.out.println("Got here");
+                    JFileChooser chooser = new JFileChooser();
+                    int option = chooser.showOpenDialog(clientPanel);
 
-                }
+                    if (option == JFileChooser.APPROVE_OPTION) {
+                        File selectedFile = chooser.getSelectedFile();
+                        filePath = selectedFile.getParent();
+                        fileName = selectedFile.getName();
+                        clientTextArea.setText("\nFile Found!");
+                    }
+                    break;
             }
         }
     }

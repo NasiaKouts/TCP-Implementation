@@ -1,5 +1,6 @@
 package Server;
 
+import javax.swing.*;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -8,6 +9,7 @@ import java.net.Socket;
 public class BaseServer{
     private String ip;
     private int port;
+    private JTextArea systemOut;
 
     public String getIp() {
         return ip;
@@ -25,12 +27,20 @@ public class BaseServer{
         this.port = port;
     }
 
-    protected String getInstanceName(){
+    public JTextArea getSystemOut() {
+        return systemOut;
+    }
+
+    public void setSystemOut(JTextArea systemOut) {
+        this.systemOut = systemOut;
+    }
+
+    String getInstanceName(){
         if(this instanceof Server) return "Server";
         return "Client";
     }
 
-    public void CloseConnections(ObjectInputStream in, ObjectOutputStream out){
+    private void CloseConnections(ObjectInputStream in, ObjectOutputStream out){
         try{
             if (in != null) {
                 in.close();
@@ -42,16 +52,21 @@ public class BaseServer{
         catch(IOException ignored){}
     }
 
-    public void CloseConnections(Socket socket, ObjectInputStream in, ObjectOutputStream out){
-        try{
-            if (socket != null){
-                socket.close();
-            }
-            CloseConnections(in, out);
+    protected void print(String s){
+        if(systemOut == null){
+            System.out.println(s);
+        }else{
+            systemOut.append("\n" + s);
         }
-        catch(IOException ignored){}
     }
 
+    protected void print(int s){
+        if(systemOut == null){
+            System.out.println(s);
+        }else{
+            systemOut.append("\n" + s);
+        }
+    }
 
     @Override
     public String toString() {

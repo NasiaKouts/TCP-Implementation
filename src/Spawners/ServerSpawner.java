@@ -9,8 +9,6 @@ import java.io.InputStreamReader;
 
 public class ServerSpawner {
     public static void main(String args[]){
-        new Server("localhost", 4200);
-
         if(args.length == 0) {
             BufferedReader in;
             try {
@@ -24,13 +22,13 @@ public class ServerSpawner {
                         "\n (Available Port: " + NetworkUtils.GetNextAvailablePort() + "):");
                 int port = Integer.parseInt(in.readLine());
 
-                new Server(ip, port);
+                new Server(ip, port, null);
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
         else {
-            new Server(args[0], Integer.parseInt(args[1]));
+            new Server(args[0], Integer.parseInt(args[1]), null);
         }
 
     }

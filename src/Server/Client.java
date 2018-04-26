@@ -3,6 +3,7 @@ package Server;
 import Models.Packet;
 import Utils.NetworkUtils;
 
+import javax.swing.*;
 import java.io.*;
 import java.net.*;
 import java.nio.ByteBuffer;
@@ -10,7 +11,6 @@ import java.util.HashMap;
 import java.util.stream.IntStream;
 
 public class Client extends BaseServer{
-
     // Parallel
     private HashMap<Integer, byte[]> payloadsToSent;
 
@@ -18,20 +18,20 @@ public class Client extends BaseServer{
 
     private String serverIp;
     private int serverPort;
+
     private String filename;
     private String fileDir;
+
     private int payloadSize;
+
+    private int totalPackets;
+    private long totalBytesSent;
+
     private boolean gotNewServerPort = false;
 
-    private boolean handshakeIncomplete = true;
-    private boolean noValidAckReceived = true;
-
-    // in
-    private DatagramSocket ackSocket;
-    // out
     private DatagramSocket packetSocket;
 
-    public Client(String serverIp, int serverPort, String filename, String fileDir, int payloadSize){
+    public Client(String serverIp, int serverPort, String filename, String fileDir, int payloadSize, JTextArea systemOut){
         super();
         setServerIp(serverIp);
         setServerPort(serverPort);
@@ -40,7 +40,10 @@ public class Client extends BaseServer{
         setPayloadSize(payloadSize);
         setPort(NetworkUtils.GetNextAvailablePort());
         setIp(NetworkUtils.GetCurrentAddress());
+        setSystemOut(systemOut);
 
+        totalPackets = 0;
+        totalBytesSent = 0;
         payloadsToSent = new HashMap<>();
 
         File file = new File(fileDir + "\\" + filename);
@@ -50,7 +53,7 @@ public class Client extends BaseServer{
             try {
                 inputStream = new FileInputStream(file);
             } catch (FileNotFoundException e) {
-                System.out.println("ERROR FILE INPUT STREAM");
+                print("ERROR FILE INPUT STREAM");
                 e.printStackTrace();
             }
             byte[] fileByteArray = new byte[(int) file.length()];
@@ -61,19 +64,19 @@ public class Client extends BaseServer{
 
             try {
                 packetSocket = new DatagramSocket(getPort(), getInetServerAddress());
-                System.out.println("Opened server socket! Is now able to send packets");
+                print("Opened server socket! Is now able to send packets");
             } catch (SocketException e) {
                 e.printStackTrace();
-                System.out.println("------------------------------------");
-                System.out.println("packetSocket = new DatagramSocket(serverPort, InetAddress.getByName(getServerIp()) error");
-                System.out.println("Re-open Client and Try Again!");
-                System.out.println("------------------------------------");
+                print("------------------------------------");
+                print("packetSocket = new DatagramSocket(serverPort, InetAddress.getByName(getServerIp()) error");
+                print("Re-open Client and Try Again!");
+                print("------------------------------------");
             } catch (UnknownHostException e) {
                 e.printStackTrace();
-                System.out.println("------------------------------------");
-                System.out.println("Unknown Hoest Error");
-                System.out.println("Re-open Client and Try Again!");
-                System.out.println("------------------------------------");
+                print("------------------------------------");
+                print("Unknown Hoet Error");
+                print("Re-open Client and Try Again!");
+                print("------------------------------------");
 
             }
             handShake();
@@ -121,22 +124,22 @@ public class Client extends BaseServer{
             dummyPacket[i] = 0;
         }
 
-        System.out.println("******************************");
-        System.out.println("Client about to create start handshake");
-        System.out.println("Client " + NetworkUtils.GetCurrentAddress());
-        System.out.println("Sending dummy data");
-        System.out.println("Starting the first step of the 3-Way-Handshake!");
-        System.out.println("******************************");
+        print("******************************");
+        print("Client about to create start handshake");
+        print("Client " + NetworkUtils.GetCurrentAddress());
+        print("Sending dummy data");
+        print("Starting the first step of the 3-Way-Handshake!");
+        print("******************************");
 
         DatagramPacket packetToSent;
         try {
             packetToSent = new DatagramPacket(dummyPacket, dummyPacket.length, getInetServerAddress(), serverPort);
         } catch (UnknownHostException e) {
             e.printStackTrace();
-            System.out.println("------------------------------------");
-            System.out.println("Unknown Host Error");
-            System.out.println("Re-open Client and Try Again!");
-            System.out.println("------------------------------------");
+            print("------------------------------------");
+            print("Unknown Host Error");
+            print("Re-open Client and Try Again!");
+            print("------------------------------------");
             return;
         }
 
@@ -146,12 +149,12 @@ public class Client extends BaseServer{
 
             //Sending Client ACK
             if(result == SEND_NEXT){
-                System.out.println("Received server's ACK of the 3-Way-Handshake!");
+                print("Received server's ACK of the 3-Way-Handshake!");
                 dummyPacket[0] = lastPacketSeq;
                 try {
                     packetToSent = new DatagramPacket(dummyPacket, dummyPacket.length, getInetServerAddress(), serverPort);
                     sendPacketNoListen(packetToSent);
-                    System.out.println("Sent my ACK back 3-Way-Handshake!");
+                    print("Sent my ACK back 3-Way-Handshake!");
                     // reset SEQ
                     lastPacketSeq = -1;
                     reSend = false;
@@ -161,13 +164,15 @@ public class Client extends BaseServer{
                 }
             }
         }
-        System.out.println("Starting Sending The File!");
-        long timeStarted = System.currentTimeMillis();
+
+        long startTime = System.nanoTime();
+
+        print("Starting Sending The File!");
 
         if(lastPacketSeq == -1) lastPacketSeq = 0;
         for(int key : payloadsToSent.keySet()){
             try {
-                System.out.println("current key " + key);
+                print("current key " + key);
                 DatagramPacket filePartToSend = createPacket(key);
 
                 int result = sendPacket(filePartToSend);
@@ -177,20 +182,23 @@ public class Client extends BaseServer{
                 }
             } catch (IOException e) {
                 e.printStackTrace();
-                System.out.println("------------------------------------");
-                System.out.println("Failed to Send Packet with Key: " + key);
-                System.out.println("------------------------------------");
+                print("------------------------------------");
+                print("Failed to Send Packet with Key: " + key);
+                print("------------------------------------");
             }
         }
 
-        long startTime = System.nanoTime();
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException ignored) { }
 
-        System.out.println("");
-        System.out.println("******************************");
-        System.out.println("File Transfer has been Completed! ");
-        System.out.println("Send server multi times the last ACK to inform that I received that he got the file");
+        System.out.println();
+        print("******************************");
+        print("File Transfer has been Completed! ");
+        print("Send server multi times the last ACK to inform that I received that he got the file");
+        print("******************************");
 
-        for(int i = 0; i<10; i++){
+        for(int i = 0; i < 10; i++){
             dummyPacket[0] = SIGNAL_SERVER_TERMINATION;
             try {
                 packetToSent = new DatagramPacket(dummyPacket, dummyPacket.length, getInetServerAddress(), serverPort);
@@ -201,94 +209,84 @@ public class Client extends BaseServer{
             }
         }
 
-        long estimatedTime = System.nanoTime() - startTime;
+        long estimatedTimeInMs = (System.nanoTime() - startTime)/1000000;
+        double kbps = (totalBytesSent/1000d) / (estimatedTimeInMs / 1000d);
+        /* Round to 2 decimal */
+        kbps = kbps*100;
+        kbps = (double)((int) kbps);
+        kbps = kbps /100;
 
-        System.out.println("");
-        System.out.println("Total Transfer Time:\t" + (estimatedTime/1000000) + " ms");
-        System.out.println("Transfer Speed:\t");
-        System.out.println("Total Packets Used:\t");
-
-        System.out.println("My job has been done! Time to close");
-        System.out.println("******************************");
+        print("******************************");
+        print("Total Transfer Time:\t" + estimatedTimeInMs + " ms");
+        print("Transfer Speed:\t" + kbps + " kBps");
+        print("Total Packets Used:\t" + totalPackets);
+        print("******************************");
     }
 
     private final static byte SIGNAL_SERVER_TERMINATION = 3;
     private final static Integer UNABLE_TO_RESUME = -1;
-    private final static Integer RETRANSMIT = 1;
     private final static Integer SEND_NEXT = 2;
 
     private Integer sendPacketNoListen(DatagramPacket packetToSent){
         // sending the packet
-        try {
-            packetSocket.send(packetToSent);
-            System.out.println("******************************");
-            System.out.println("Sent Packet Seq = " + lastPacketSeq);
-            System.out.println("To: "+this.serverIp);
-            System.out.println("Port: "+serverPort);
-            System.out.println("******************************");
-        } catch (IOException e) {
-            e.printStackTrace();
-            System.out.println("------------------------------------");
-            System.out.println("Error trying to send packet Seq = " + lastPacketSeq);
-            System.out.println("Reboot System Please!");
-            System.out.println("------------------------------------");
-            return UNABLE_TO_RESUME;
-        }
+        if (forwardPacket(packetToSent)) return UNABLE_TO_RESUME;
         return SEND_NEXT;
     }
 
+    private boolean forwardPacket(DatagramPacket packetToSent) {
+        try {
+            packetSocket.send(packetToSent);
+            totalPackets++;
+            totalBytesSent += packetToSent.getLength();
+            print("******************************");
+            print("Sent Packet Seq = " + lastPacketSeq);
+            print("To: "+this.serverIp);
+            print("Port: "+serverPort);
+            print("******************************");
+        } catch (IOException e) {
+            e.printStackTrace();
+            print("------------------------------------");
+            print("Error trying to send packet Seq = " + lastPacketSeq);
+            print("Reboot System Please!");
+            print("------------------------------------");
+            return true;
+        }
+        return false;
+    }
+
     private Integer sendPacket(DatagramPacket packetToSent){
-        noValidAckReceived = true;
+        boolean noValidAckReceived = true;
         while(noValidAckReceived){
             // sending the packet
-            try {
-                packetSocket.send(packetToSent);
-                System.out.println("******************************");
-                System.out.println("Sent Packet Seq = " + lastPacketSeq);
-                System.out.println("To: "+this.serverIp);
-                System.out.println("Port: "+serverPort);
-                System.out.println("******************************");
-            } catch (IOException e) {
-                e.printStackTrace();
-                System.out.println("------------------------------------");
-                System.out.println("Error trying to send packet Seq = " + lastPacketSeq);
-                System.out.println("Reboot System Please!");
-                System.out.println("------------------------------------");
-                return UNABLE_TO_RESUME;
-            }
+            if (forwardPacket(packetToSent)) return UNABLE_TO_RESUME;
 
             int sizeOfReceived = 1;
+            boolean handshakeIncomplete = true;
             if(handshakeIncomplete)  sizeOfReceived = 5;
             // packet sent, waiting for ACK
             byte[] ackReceived = new byte[sizeOfReceived];
             DatagramPacket ackReceivedPacket = new DatagramPacket(ackReceived, ackReceived.length);
             try {
-                try {
-                    packetSocket.setSoTimeout(10000);
-                    //System.out.println("Sent timeout");
-                } catch (SocketException e) {
-                    e.printStackTrace();
-                    System.out.println("------------------------------------");
-                    System.out.println("Timeout! Retransmit packet Seq = " + lastPacketSeq);
-                    System.out.println("------------------------------------");
-                    return RETRANSMIT;
-                }
                 // ACK received
+                packetSocket.setSoTimeout(10000);
                 packetSocket.receive(ackReceivedPacket);
                 ackReceived = ackReceivedPacket.getData();
+                print("******************************");
+                print("A ACK Received by Server");
+                print("ACK = " + (ackReceived[0] == (byte)0 ? "0" : "1"));
+                print("Last Packet Sent from Client, Seq = " + lastPacketSeq);
+                print("New Server Port Is: "+serverPort);
+                print("******************************");
 
-                System.out.println("******************************");
-                System.out.println("A ACK Received by Server");
-                System.out.println("ACK = " + (ackReceived[0] == (byte)0 ? "0" : "1"));
-                System.out.println("Last Packet Sent from Client, Seq = " + lastPacketSeq);
-                System.out.println("New Server Port Is: "+serverPort);
-                System.out.println("******************************");
-
-            } catch (IOException e) {
+            }
+            catch (SocketTimeoutException ex){
+                sendPacket(packetToSent);
+            }
+            catch (IOException e) {
                 e.printStackTrace();
-                System.out.println("------------------------------------");
-                System.out.println("packetSocket.receive(inDatagramPacket) Error");
-                System.out.println("------------------------------------");
+                print("------------------------------------");
+                print("packetSocket.receive(inDatagramPacket) Error");
+                print("------------------------------------");
                 continue;
             }
 
@@ -318,21 +316,21 @@ public class Client extends BaseServer{
             byte ackDecoded = decodeACK(acks);
             // If there was error in the transmitted ACK, Retransmit packet
             if(ackDecoded == ERROR_IN_ACK) {
-                System.out.println("------------------------------------");
-                System.out.println("Ack Error in Transmission");
-                System.out.println("------------------------------------");
+                print("------------------------------------");
+                print("Ack Error in Transmission");
+                print("------------------------------------");
             }
             // If the ACK is not for the corresponding packet, thus means probably the packet lost, so retransmit it
             else if(ackDecoded == lastPacketSeq){
-                System.out.println("------------------------------------");
-                System.out.println("Not correct Ack Number Error");
-                System.out.println("------------------------------------");
+                print("------------------------------------");
+                print("Not correct Ack Number Error");
+                print("------------------------------------");
             }
             // Valid ACK move to next Packet
             else {
-                System.out.println("******************************");
-                System.out.println("Valid Ack! Move to the next packet");
-                System.out.println("******************************");
+                print("******************************");
+                print("Valid Ack! Move to the next packet");
+                print("******************************");
 
                 lastPacketSeq = NetworkUtils.calculateNextSeqNumber(lastPacketSeq);
                 noValidAckReceived = false;
@@ -389,26 +387,36 @@ public class Client extends BaseServer{
                 1 byte SEQ NUM
                 1 byte flag ->  1 if it is the last packet
                                 0 if it is not the last packet
-                4 bytes Payload size
+                2 bytes Payload size
                 x bytes Actual data
                 8 bytes CheckSum
          */
         boolean isLastPacket = key == (payloadsToSent.size() - 2);
         byte[] filePartPayloadData = payloadsToSent.get(key);
 
-        ByteBuffer packetBytesBuffer = ByteBuffer.allocate(filePartPayloadData.length + 6);
-        byte[] seqFlag = new byte[2];
-        seqFlag[0] = lastPacketSeq;
-        seqFlag[1] = isLastPacket ? (byte)1 : (byte)0;
-        byte[] payloadSizeSent = ByteBuffer.allocate(4).putInt(filePartPayloadData.length).array();
+        ByteBuffer packetBytesBuffer = ByteBuffer.allocate(filePartPayloadData.length + Packet.HEADER_SIZE);
+        byte[] header = new byte[Packet.HEADER_SIZE];
+        header[0] = lastPacketSeq;
+        header[1] = isLastPacket ? (byte)1 : (byte)0;
 
-        packetBytesBuffer.put(seqFlag);
-        packetBytesBuffer.put(payloadSizeSent);
+        // we now that max payload is 65500 wish is 0xFFDC or  (11111111 11011100)2
+        // so we convert it to byte array and only keep the 2 last bytes
+        // since we are sure the rest is zero
+        byte[] payloadSizeToByteArray = new byte[] {
+                (byte)(filePartPayloadData.length >>> 24),
+                (byte)(filePartPayloadData.length >>> 16),
+                (byte)(filePartPayloadData.length >>> 8),
+                (byte)filePartPayloadData.length};
+
+        header[2] = payloadSizeToByteArray[2];
+        header[3] = payloadSizeToByteArray[3];
+
+        packetBytesBuffer.put(header);
         packetBytesBuffer.put(filePartPayloadData);
         byte[] packetBytesPreCheckSum = packetBytesBuffer.array();
         long checkSum = NetworkUtils.calculateCheckSum(packetBytesPreCheckSum);
 
-        ByteBuffer packetBytes = ByteBuffer.allocate(packetBytesPreCheckSum.length + 8);
+        ByteBuffer packetBytes = ByteBuffer.allocate(packetBytesPreCheckSum.length + Packet.CHECKSUM_SIZE);
         packetBytes.put(packetBytesPreCheckSum);
         packetBytes.putLong(checkSum);
 
@@ -419,7 +427,7 @@ public class Client extends BaseServer{
         CRC32 checksum = new CRC32();
         checksum.update(seqNumBytes);
         checksum.update(dataBytes);
-        byte[] checksumBytes = ByteBuffer.allocate(8).putLong(checksum.getValue()).array();	// checksum (8 bytes)
+        byte[] checksumBytes = ByteBuffer.allocate(8).putLong(checksum.getValue()).array();    // checksum (8 bytes)
 
         // generate packet
         ByteBuffer pktBuf = ByteBuffer.allocate(8 + 4 + dataBytes.length);
@@ -447,6 +455,4 @@ public class Client extends BaseServer{
             return ERROR_IN_ACK;
         }
     }
-
-
 }

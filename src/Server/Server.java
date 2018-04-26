@@ -3,38 +3,35 @@ package Server;
 import Models.Packet;
 import Utils.NetworkUtils;
 
+import javax.swing.*;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.*;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
 
 public class Server extends BaseServer{
 
     private static final int MAX_PACKET_SIZE = 65509;
-    private static int timeOut = 300;
-
 
     /* Define the socket that receives requests */
-    protected DatagramSocket inServerSocket;
+    private DatagramSocket inServerSocket;
 
-    private boolean keepListening = true;
-
-    public Server(String ip, int port) {
+    public Server(String ip, int port, JTextArea systemOut) {
         super();
         setIp(ip);
         setPort(port);
+        setSystemOut(systemOut);
         try {
             inServerSocket = new DatagramSocket(getPort());
-            System.out.println(getInstanceName() + " with " +
+            print(getInstanceName() + " with " +
                     getIp() + ":" + getPort() + " opened! Is now listening...");
         } catch (SocketException e) {
             e.printStackTrace();
-            System.out.println("------------------------------------");
-            System.out.println("inServerSocket new error");
-            System.out.println("------------------------------------");
+            print("------------------------------------");
+            print("inServerSocket new error");
+            print("------------------------------------");
         }
         this.handleListening();
     }
@@ -45,18 +42,19 @@ public class Server extends BaseServer{
         byte[] inPacket = new byte[MAX_PACKET_SIZE];
         DatagramPacket inDatagramPacket = new DatagramPacket(inPacket, MAX_PACKET_SIZE);
 
+        boolean keepListening = true;
         while (keepListening) {
             try {
                 inServerSocket.receive(inDatagramPacket);
-                System.out.println("******************************");
-                System.out.println("A Packet Received on default port");
-                System.out.println("******************************");
+                print("******************************");
+                print("A Packet Received on default port");
+                print("******************************");
 
             } catch (IOException e) {
                 e.printStackTrace();
-                System.out.println("------------------------------------");
-                System.out.println("inServerSocket.receive(inDatagramPacket) Error");
-                System.out.println("------------------------------------");
+                print("------------------------------------");
+                print("inServerSocket.receive(inDatagramPacket) Error");
+                print("------------------------------------");
                 continue;
             }
 
@@ -66,10 +64,10 @@ public class Server extends BaseServer{
 
             // If the we havent received the initialize handshake packet from this client
             if(packetReceived.getFlag() != Packet.NO_DATA_FILE) {
-                System.out.println("------------------------------------");
-                System.out.println("Client tried to send data without handshaking first!");
-                System.out.println("Ignoring this...");
-                System.out.println("------------------------------------");
+                print("------------------------------------");
+                print("Client tried to send data without handshaking first!");
+                print("Ignoring this...");
+                print("------------------------------------");
                 continue;
             }
 
@@ -83,9 +81,9 @@ public class Server extends BaseServer{
                         .start();
             } catch (SocketException e) {
                 e.printStackTrace();
-                System.out.println("------------------------------------");
-                System.out.println("new DatagramSocket Error");
-                System.out.println("------------------------------------");
+                print("------------------------------------");
+                print("new DatagramSocket Error");
+                print("------------------------------------");
                 continue;
             }
 
@@ -107,12 +105,12 @@ public class Server extends BaseServer{
         }
         // If Packet is Corrupt
         else {
-            System.out.println("------------------------------------");
-            System.out.println("Corrupted Packet");
-            System.out.println("\nCheckSum on Packet: " + packetRecieved.getChecksum());
-            System.out.println("\nCheckSum on Calculated: " + packetRecieved.caluclateCheckSumFromRawData(inDatagramPacket.getData()));
-            System.out.println("\nDropping Packet. Ignore receiving and wait for retransmission...");
-            System.out.println("------------------------------------");
+            print("------------------------------------");
+            print("Corrupted Packet");
+            print("\nCheckSum on Packet: " + packetRecieved.getChecksum());
+            print("\nCheckSum on Calculated: " + packetRecieved.caluclateCheckSumFromRawData(inDatagramPacket.getData()));
+            print("\nDropping Packet. Ignore receiving and wait for retransmission...");
+            print("------------------------------------");
 
             return null;
         }
@@ -133,11 +131,18 @@ public class Server extends BaseServer{
         private String fileName = null;
         private File outFile = null;
 
+        boolean recievedCloseACK = false;
         boolean notLastPacket = true;
         boolean firstPacket = true;
 
-        // ServerClientThread constructor
-        public ServerClientThread(byte seq, DatagramSocket socket, int newPortIn, InetAddress clientAddress, int clientPort) {
+        private int timeoutExceedCount = 0;
+
+        DatagramPacket ackPacket;
+
+        /**
+         * Constructor
+         */
+        private ServerClientThread(byte seq, DatagramSocket socket, int newPortIn, InetAddress clientAddress, int clientPort) {
             this.seqExpecting = NetworkUtils.calculateNextSeqNumber(seq);
             this.socket = socket;
             this.inPort = newPortIn;
@@ -145,25 +150,22 @@ public class Server extends BaseServer{
             this.clientPort = clientPort;
             this.clientId = ++counter;
 
-            System.out.println("******************************");
-            System.out.println("New Thread Listening No: " + counter);
-            System.out.println("Listening to port: " + inPort);
-            System.out.println("For client " + clientAddress.getHostAddress());
-            System.out.println("");
-            System.out.println("Received the first step of the 3-Way-Handshake! SEQ = " + seq);
+            print("******************************");
+            print("New Thread Listening No: " + counter);
+            print("Listening to port: " + inPort);
+            print("For client " + clientAddress.getHostAddress());
+            print("");
+            print("Received the first step of the 3-Way-Handshake! SEQ = " + seq);
             SecondPartHandshake();
         }
 
-        DatagramPacket ackPacket;
-
-        public void SecondPartHandshake() {
-            System.out.println("Starting the second step of the 3-Way-Handshake! (Send ACK with my new Port server)");
-            System.out.println("******************************");
+        private void SecondPartHandshake() {
+            print("Starting the second step of the 3-Way-Handshake! (Send ACK with my new Port server)");
+            print("******************************");
             sendSynAckWithNewPort();
         }
 
-
-        /*
+        /**
             The server sends back to the client an ACK with the SEQ number of the packet he expects next
             ACK messages contain the ACK triple times in order to be able to detect error in transition
         */
@@ -179,21 +181,10 @@ public class Server extends BaseServer{
             }
 
             DatagramPacket ackPacket = new DatagramPacket(ackMessage, ackMessage.length, clientAddress, clientPort);
-            try {
-                socket.send(ackPacket);
-                System.out.println("******************************");
-                System.out.println("Sent ACK = " + (ackMessage[0] == (byte)0 ? "0" : "1"));
-                System.out.println("******************************");
-            } catch (IOException e) {
-                e.printStackTrace();
-                e.printStackTrace();
-                System.out.println("------------------------------------");
-                System.out.println("new ACK packet Error");
-                System.out.println("------------------------------------");
-            }
+            forwardAckPacket(ackMessage, ackPacket);
         }
 
-        /*
+        /**
           The server sends back to the client an ACK with the SEQ number of the packet he expects next
           ACK messages contain the ACK triple times in order to be able to detect error in transition
 
@@ -203,13 +194,8 @@ public class Server extends BaseServer{
         private void sendSynAckWithNewPort(){
             byte[] ackMessage = new byte[1];
             // ACK 0, so 3 times 0 is int 0
-            if(seqExpecting == (byte)(0)) {
-                ackMessage[0] = (byte)0;
-            }
             // ACK 1, so 3 times 1 is int 7
-            else {
-                ackMessage[0] = (byte)7;
-            }
+            ackMessage[0] = seqExpecting == (byte) (0) ? (byte) 0 : (byte) 7;
 
             ByteBuffer ackWithNewPort = ByteBuffer.allocate(5);
             byte[] newPortByteArray = ByteBuffer.allocate(4).putInt(inPort).array();
@@ -219,17 +205,21 @@ public class Server extends BaseServer{
             byte[] message = ackWithNewPort.array();
 
             ackPacket = new DatagramPacket(message, message.length, clientAddress, clientPort);
+            forwardAckPacket(ackMessage, ackPacket);
+        }
+
+        private void forwardAckPacket(byte[] ackMessage, DatagramPacket ackPacket) {
             try {
                 socket.send(ackPacket);
-                System.out.println("******************************");
-                System.out.println("Sent ACK = " + (ackMessage[0] == (byte)0 ? "0" : "1"));
-                System.out.println("******************************");
+                print("******************************");
+                print("Sent ACK = " + (ackMessage[0] == (byte)0 ? "0" : "1"));
+                print("******************************");
             } catch (IOException e) {
                 e.printStackTrace();
                 e.printStackTrace();
-                System.out.println("------------------------------------");
-                System.out.println("new ACK packet Error");
-                System.out.println("------------------------------------");
+                print("------------------------------------");
+                print("new ACK packet Error");
+                print("------------------------------------");
             }
         }
 
@@ -239,44 +229,57 @@ public class Server extends BaseServer{
                 DatagramPacket inDatagramPacket = new DatagramPacket(inPacket, MAX_PACKET_SIZE_IN_THIS_CONNECTION);
 
                 try {
-                    System.out.println(socket.getLocalPort());
+                    socket.setSoTimeout(10000);
+                } catch (SocketException e) {
+                    print("------------------------------------");
+                    print("Sending SYN-ACK Again");
+                    print("------------------------------------");
+
+                    if(timeoutExceedCount > 2) return;
+
+                    timeoutExceedCount++;
+                    sendSynAckWithNewPort();
+                    continue;
+                }
+
+                try {
+                    print(socket.getLocalPort());
                     socket.receive(inDatagramPacket);
-                    System.out.println("******************************");
-                    System.out.println("A Packet Received by client no: " + clientId);
-                    System.out.println("******************************");
+                    print("******************************");
+                    print("A Packet Received by client no " + clientId);
+                    print("******************************");
                 } catch (IOException e) {
-                    e.printStackTrace();
-                    System.out.println("------------------------------------");
-                    System.out.println("packetSocket.receive(inDatagramPacket) Error");
-                    System.out.println("------------------------------------");
+                    print("------------------------------------");
+                    print("packetSocket.receive() Error");
+                    print("------------------------------------");
                     continue;
                 }
 
                 // In case the packet is CORRUPT continue to next iteration of the loop
                 Packet packetReceived = handleReceivingPacket(inDatagramPacket);
                 if (packetReceived == null) {
-                    System.out.println("CORRUPTED");
+                    print("CORRUPTED");
                     continue;
                 }
 
                 if(packetReceived.getFlag() != Packet.NO_DATA_FILE) {
-                    System.out.println("------------------------------------");
-                    System.out.println("Client with no: " +clientId+ "started sending data before connection established!");
-                    System.out.println("Handshake failed! Closing this...");
-                    System.out.println("------------------------------------");
-                    //TODO CLOSE WHEN THIS HAPPEN OR TIMEOUT HAPPEN
+                    print("------------------------------------");
+                    print("Client with no: " +clientId+ " started sending data before connection established!");
+                    print("Handshake failed! Closing Conn...");
+                    print("------------------------------------");
+                    timeoutExceedCount = 3;
+                    return;
                 }
 
-                System.out.println("Packet Seq == " + packetReceived.getSequenceNumber());
-                System.out.println("Seq Expecting == " + seqExpecting);
+                print("Packet Seq == " + packetReceived.getSequenceNumber());
+                print("Seq Expecting == " + seqExpecting);
 
                 // If it is RETRANSMISSION continue to next iteration of the loop after sending duplicate ACK
                 if (packetReceived.getSequenceNumber() != seqExpecting) {
-                    System.out.println("The retransmitted packet has been dropped");
-                    System.out.println("Send Duplicate ACK");
-                    System.out.println("******************************");
-                    System.out.println("******************************");
-                    System.out.println("");
+                    print("The retransmitted packet has been dropped");
+                    print("Send Duplicate ACK");
+                    print("******************************");
+                    print("******************************");
                     sendSynAckWithNewPort();
                     continue;
                 }
@@ -284,94 +287,113 @@ public class Server extends BaseServer{
                 // If it is the Client's ACK -> 3rd pard of the 3-Way-Handshake
                 // simple update the handshake state and the seq number expecting
 
-                System.out.println("Received Client's ACK, the 3rd part of the 3-Way-Handshake");
-                System.out.println("No Ack Sending. Simply waiting the file transfer...");
-                System.out.println("3-Way-Handshake Completed!!!");
-                System.out.println("******************************");
-                System.out.println("");
+                print("Received Client's ACK, the 3rd part of the 3-Way-Handshake");
+                print("No Ack Sending. Simply waiting the file transfer...");
+                print("3-Way-Handshake Completed!!!");
+                print("******************************");
+                print("");
                 handshakeInComplete = false;
 
                 seqExpecting = 0;
-                System.out.println("ResetSeqNumber " + seqExpecting);
+                print("ResetSeqNumber " + seqExpecting);
             }
         }
 
-        // If the packet received is valid and accepted one returns the packet
-        // Otherwise sends the corresponding ACK if needed and returns null;
+        /**
+           If the packet received is valid and accepted one returns the packet
+           Otherwise sends the corresponding ACK if needed and returns null;
+         */
         private Packet listenSocket(){
             byte[] inPacket = new byte[MAX_PACKET_SIZE_IN_THIS_CONNECTION];
-            System.out.println("WHILE LISTEN SERVER");
+            print("WHILE LISTEN SERVER");
             DatagramPacket inDatagramPacket = new DatagramPacket(inPacket, MAX_PACKET_SIZE_IN_THIS_CONNECTION);
 
             try {
-                System.out.println(socket.getLocalPort());
+                print(socket.getLocalPort());
                 socket.receive(inDatagramPacket);
-                System.out.println("******************************");
-                System.out.println("A Packet Received by client no: " + clientId);
-                System.out.println("******************************");
+                print("******************************");
+                print("A Packet Received by client no: " + clientId);
+                print("******************************");
             } catch (IOException e) {
                 e.printStackTrace();
-                System.out.println("------------------------------------");
-                System.out.println("packetSocket.receive(inDatagramPacket) Error");
-                System.out.println("------------------------------------");
+                print("------------------------------------");
+                print("packetSocket.receive(inDatagramPacket) Error");
+                print("------------------------------------");
                 return null;
             }
 
             // In case the packet is CORRUPT continue to next iteration of the loop
             Packet packetReceived = handleReceivingPacket(inDatagramPacket);
             if (packetReceived == null) {
-                System.out.println("CORRUPTED");
+                print("CORRUPTED");
                 return null;
             }
-            System.out.println("Packet Seq == " + packetReceived.getSequenceNumber());
-            System.out.println("Seq Expecting == " + seqExpecting);
+
+            if(!notLastPacket){
+                if(packetReceived.getSequenceNumber() == SIGNAL_SERVER_TERMINATION){
+                    recievedCloseACK = true;
+                }else{
+                    sendACK();
+                }
+                return null;
+            }
+
+            print("Packet Seq == " + packetReceived.getSequenceNumber());
+            print("Seq Expecting == " + seqExpecting);
 
             // If it is RETRANSMISSION continue to next iteration of the loop after sending duplicate ACK
             if (packetReceived.getSequenceNumber() != seqExpecting) {
-                System.out.println("The retransmitted packet has been dropped");
-                System.out.println("Send Duplicate ACK");
-                System.out.println("******************************");
-                System.out.println("******************************");
-                System.out.println("");
+                print("The retransmitted packet has been dropped");
+                print("Send Duplicate ACK");
+                print("******************************");
+                print("******************************");
+                print("");
                 sendACK();
                 return null;
             }
             return packetReceived;
         }
 
-        // Handles the accepted packet
-        // Either creates the file - first packet received
-        // Either appends data to this file - rest packets
+        /**
+          Handles the accepted packet
+          Either creates the file - first packet received
+          Either appends data to this file - rest packets
+        */
         private void handleAcceptedPacket(Packet packetReceived){
-            // If the packet is the first packet received after the Handshake completion
-            // it is transferring only the name of the file
+            /*
+              If the packet is the first packet received after the Handshake completion
+              it is transferring only the name of the file
+            */
             if (firstPacket) {
                 fileName = new String(packetReceived.getData());
-                System.out.println("Received the FileName: " + fileName);
-                System.out.println("******************************");
-                System.out.println("");
+                print("Received the FileName: " + fileName);
+                print("******************************");
+                print("");
                 seqExpecting = NetworkUtils.calculateNextSeqNumber(seqExpecting);
                 sendACK();
                 firstPacket = false;
 
                 //region CREATE FILE
+
                 outFile = new File(fileName);
                 if (!outFile.exists()) {
                     try {
                         outFile.createNewFile();
                     } catch (IOException e) {
                         e.printStackTrace();
-                        return;
                     }
                 }
+
                 //endregion
-            } else {
+
+            }
+            else {
                 // Change the max Payload the first time he finally learns about the max payload
-                if(MAX_PACKET_SIZE_IN_THIS_CONNECTION == MAX_PACKET_SIZE_IN_THIS_CONNECTION)
+                if(MAX_PACKET_SIZE_IN_THIS_CONNECTION == MAX_PACKET_SIZE)
                     MAX_PACKET_SIZE_IN_THIS_CONNECTION = packetReceived.getPayloadSize() + Packet.HEADER_SIZE + Packet.CHECKSUM_SIZE;
 
-                // If the packet simple data of the file being transferred
                 //region WRITE PACKET DATA TO FILE
+
                 if (outFile != null) {
                     FileOutputStream saltOutFile = null;
                     try {
@@ -382,28 +404,30 @@ public class Server extends BaseServer{
                     try {
                         saltOutFile.write(packetReceived.getData());
                     } catch (IOException e) {
-                        System.out.println("ERROR FILE WRITE");
+                        print("ERROR FILE WRITE");
                         e.printStackTrace();
                     }
                     try {
                         saltOutFile.close();
                     } catch (IOException e) {
-                        System.out.println("ERROR TRYING TO CLOSE THE FILE");
+                        print("ERROR TRYING TO CLOSE THE FILE");
                         e.printStackTrace();
                     }
                 }
+
                 //endregion
+
                 seqExpecting = NetworkUtils.calculateNextSeqNumber(seqExpecting);
                 sendACK();
 
                 if (packetReceived.isNotLastPacket()) {
-                    System.out.println("Write file data to file");
-                    System.out.println("******************************");
-                    System.out.println("");
+                    print("Write file data to file");
+                    print("******************************");
+                    print("");
                 } else {
-                    System.out.println("File Transfer Completed!");
-                    System.out.println("******************************");
-                    System.out.println("");
+                    print("File Transfer Completed!");
+                    print("******************************");
+                    print("");
                     notLastPacket = false;
                 }
             }
@@ -411,17 +435,25 @@ public class Server extends BaseServer{
 
         @Override
         public void run() {
-            System.out.println("Got in run");
+            print("Got in run");
             handshakeInComplete();
-            while (notLastPacket) {
+
+            if(timeoutExceedCount >= 3){
+                print("Closing Communication with client with error!");
+                socket.close();
+                return;
+            }
+
+            while (!recievedCloseACK) {
                 Packet packetReceived = listenSocket();
                 if(packetReceived == null) continue;
 
                 handleAcceptedPacket(packetReceived);
             }
 
-            System.out.println("Closing Communication with client: " + counter + "...");
+            print("Closing Communication with client: " + counter + "...");
             socket.close();
+            interrupt();
         }
     }
 

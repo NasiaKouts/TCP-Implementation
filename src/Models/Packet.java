@@ -25,19 +25,19 @@ public class Packet {
     // THIS CODE IS is used as flag during the handshake
     public final static byte NO_DATA_FILE = 4;
 
-    public final static int HEADER_SIZE = 6;
+    public final static int HEADER_SIZE = 4;
     public final static int CHECKSUM_SIZE = 8;
     public final static int SEQ_NUM_INDEX = 0;
     public final static int FLAG_INDEX = 1;
     public final static int PAYLOAD_SIZE_START_INDEX = 2;
-    public final static int PAYLOAD_START_INDEX = 6;
+    public final static int PAYLOAD_START_INDEX = 4;
 
     /*
         Packet format:
             1 byte SEQ NUM
             1 byte flag ->  1 if it is the last packet
                             0 if it is not the last packet
-            4 bytes Payload size
+            2 bytes Payload size
             x bytes Actual data
             8 bytes CheckSum
      */
@@ -47,10 +47,8 @@ public class Packet {
 
         this.flag = packetByteArray[FLAG_INDEX];
 
-        this.payloadSize = ((packetByteArray[PAYLOAD_SIZE_START_INDEX] & 0xff) << 24) |
-                ((packetByteArray[PAYLOAD_SIZE_START_INDEX + 1] & 0xff) << 16) |
-                ((packetByteArray[PAYLOAD_SIZE_START_INDEX + 2] & 0xff) << 8) |
-                (packetByteArray[PAYLOAD_SIZE_START_INDEX + 3] & 0xff);
+        this.payloadSize = ((packetByteArray[PAYLOAD_SIZE_START_INDEX] & 0xff) << 8) |
+                ((packetByteArray[PAYLOAD_SIZE_START_INDEX + 1] & 0xff));
 
         this.data = new byte[payloadSize];
         IntStream
@@ -94,7 +92,7 @@ public class Packet {
     }
 
     //1 byte flag ->  1 if it is the last packet
-      //                      0 if it is not the last packet
+    //                      0 if it is not the last packet
     public boolean isNotLastPacket() {
         return flag == (byte)0;
     }
@@ -149,22 +147,9 @@ public class Packet {
         if(payloadSize == 0) return true;
 
         byte[] realPacket = new byte[payloadSize + 6];
-        for(int i = 0; i < realPacket.length; i++){
-            realPacket[i] = rawPacket[i];
-        }
-        long current = NetworkUtils.calculateCheckSum(realPacket);
-        //byte[] currenctCheckSum = ByteBuffer.allocate(8).putLong(current).array();
+        System.arraycopy(rawPacket, 0, realPacket, 0, realPacket.length);
 
-        System.out.println("Calculated checksum: " + current +
-                    "\n Received checksum: " + checksum);
-        //return Arrays.equals(currenctCheckSum, checksum);
-        return current == checksum;
-        /*
-            If using CRC
-            CRC32 checkSumCalculated = new CRC32();
-			checkSumCalculated.update(realPacket);
-			return checkSumCalculated == checksum;
-         */
+        return NetworkUtils.calculateCheckSum(realPacket) == checksum;
     }
 
     public long caluclateCheckSumFromRawData(byte[] rawPacket){

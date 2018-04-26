@@ -117,10 +117,12 @@ public class Client extends BaseServer{
         // Send dummy package to initialize handshake, contains only a SEQ number
         byte[] dummyPacket = new byte[payloadSize + Packet.HEADER_SIZE + Packet.CHECKSUM_SIZE];
 
-        dummyPacket[Packet.SEQ_NUM_INDEX] = lastPacketSeq;
-        dummyPacket[Packet.FLAG_INDEX] = Packet.NO_DATA_FILE;
+        //set flags
+        dummyPacket[0] = 0;
+        dummyPacket[0] |= (lastPacketSeq << 2);
+        dummyPacket[0] |= (Packet.NO_DATA_FILE << 1);
 
-        for(int i = 2; i < Packet.PAYLOAD_START_INDEX; i++){
+        for(int i = 1; i < Packet.PAYLOAD_START_INDEX; i++){
             dummyPacket[i] = 0;
         }
 
@@ -150,7 +152,10 @@ public class Client extends BaseServer{
             //Sending Client ACK
             if(result == SEND_NEXT){
                 print("Received server's ACK of the 3-Way-Handshake!");
-                dummyPacket[0] = lastPacketSeq;
+                //set flags
+                dummyPacket[0] = 0;
+                dummyPacket[0] |= (lastPacketSeq << 2);
+                dummyPacket[0] |= (Packet.NO_DATA_FILE << 1);
                 try {
                     packetToSent = new DatagramPacket(dummyPacket, dummyPacket.length, getInetServerAddress(), serverPort);
                     sendPacketNoListen(packetToSent);
@@ -199,7 +204,9 @@ public class Client extends BaseServer{
         print("******************************");
 
         for(int i = 0; i < 10; i++){
-            dummyPacket[0] = SIGNAL_SERVER_TERMINATION;
+            dummyPacket[Packet.HEADER_INDEX] |= ((byte)1 << 2);
+            dummyPacket[Packet.HEADER_INDEX] |= ((byte)1 << 1);
+            dummyPacket[Packet.HEADER_INDEX] |= (byte)1;
             try {
                 packetToSent = new DatagramPacket(dummyPacket, dummyPacket.length, getInetServerAddress(), serverPort);
                 sendPacketNoListen(packetToSent);
@@ -396,8 +403,10 @@ public class Client extends BaseServer{
 
         ByteBuffer packetBytesBuffer = ByteBuffer.allocate(filePartPayloadData.length + Packet.HEADER_SIZE);
         byte[] header = new byte[Packet.HEADER_SIZE];
-        header[0] = lastPacketSeq;
-        header[1] = isLastPacket ? (byte)1 : (byte)0;
+
+        header[Packet.HEADER_INDEX] = 0;
+        header[Packet.HEADER_INDEX] |= (lastPacketSeq << 2);
+        header[Packet.HEADER_INDEX] |= (isLastPacket ? (byte)1 : (byte)0);
 
         // we now that max payload is 65500 wish is 0xFFDC or  (11111111 11011100)2
         // so we convert it to byte array and only keep the 2 last bytes
@@ -408,8 +417,8 @@ public class Client extends BaseServer{
                 (byte)(filePartPayloadData.length >>> 8),
                 (byte)filePartPayloadData.length};
 
-        header[2] = payloadSizeToByteArray[2];
-        header[3] = payloadSizeToByteArray[3];
+        header[Packet.PAYLOAD_SIZE_START_INDEX] = payloadSizeToByteArray[2];
+        header[Packet.PAYLOAD_SIZE_START_INDEX + 1] = payloadSizeToByteArray[3];
 
         packetBytesBuffer.put(header);
         packetBytesBuffer.put(filePartPayloadData);
@@ -422,20 +431,6 @@ public class Client extends BaseServer{
 
         byte[] packet = packetBytes.array();
         return new DatagramPacket(packet, packet.length, InetAddress.getByName(serverIp), serverPort);
-
-        /*
-        CRC32 checksum = new CRC32();
-        checksum.update(seqNumBytes);
-        checksum.update(dataBytes);
-        byte[] checksumBytes = ByteBuffer.allocate(8).putLong(checksum.getValue()).array();    // checksum (8 bytes)
-
-        // generate packet
-        ByteBuffer pktBuf = ByteBuffer.allocate(8 + 4 + dataBytes.length);
-        pktBuf.put(checksumBytes);
-        pktBuf.put(seqNumBytes);
-        pktBuf.put(dataBytes);
-        return pktBuf.array();*/
-
     }
 
     private InetAddress getInetServerAddress() throws UnknownHostException {

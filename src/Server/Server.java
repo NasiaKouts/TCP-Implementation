@@ -63,7 +63,7 @@ public class Server extends BaseServer{
             if(packetReceived == null) continue;
 
             // If the we havent received the initialize handshake packet from this client
-            if(packetReceived.getFlag() != Packet.NO_DATA_FILE) {
+            if(!packetReceived.isNoDataPacket()) {
                 print("------------------------------------");
                 print("Client tried to send data without handshaking first!");
                 print("Ignoring this...");
@@ -262,7 +262,7 @@ public class Server extends BaseServer{
                     continue;
                 }
 
-                if(packetReceived.getFlag() != Packet.NO_DATA_FILE) {
+                if(!packetReceived.isNoDataPacket()) {
                     print("------------------------------------");
                     print("Client with no: " +clientId+ " started sending data before connection established!");
                     print("Handshake failed! Closing Conn...");
@@ -330,7 +330,9 @@ public class Server extends BaseServer{
             }
 
             if(!notLastPacket){
-                if(packetReceived.getSequenceNumber() == SIGNAL_SERVER_TERMINATION){
+                if(packetReceived.getSequenceNumber() == 1 &&
+                        packetReceived.isNoDataPacket() &&
+                        !packetReceived.isNotLastPacket()){
                     recievedCloseACK = true;
                 }else{
                     sendACK();

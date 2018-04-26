@@ -12,7 +12,6 @@ public class ClientSpawner {
         if(args.length == 0) {
             new Client("localhost", 4200, "DSC_0001.jpg", "D:\\Desktop\\101D3200", 65000);
 
-
             BufferedReader in;
             try {
                 in = new BufferedReader(new InputStreamReader(System.in));

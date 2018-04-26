@@ -8,7 +8,7 @@ import java.util.stream.IntStream;
 // payloadsize == 0 for handshakes
 public class Packet {
     private byte sequenceNumber;
-    private boolean notLastPacket;
+    private byte flag;
     private int payloadSize;
     private byte[] data;
     private long checksum;
@@ -21,6 +21,9 @@ public class Packet {
         this.address = clientAddress;
         this.port = port;
     }
+
+    // THIS CODE IS is used as flag during the handshake
+    public final static byte NO_DATA_FILE = 4;
 
     public final static int HEADER_SIZE = 6;
     public final static int CHECKSUM_SIZE = 8;
@@ -42,7 +45,7 @@ public class Packet {
 
         this.sequenceNumber = packetByteArray[SEQ_NUM_INDEX];
 
-        this.notLastPacket = packetByteArray[FLAG_INDEX] == 0x00;
+        this.flag = packetByteArray[FLAG_INDEX];
 
         this.payloadSize = ((packetByteArray[PAYLOAD_SIZE_START_INDEX] & 0xff) << 24) |
                 ((packetByteArray[PAYLOAD_SIZE_START_INDEX + 1] & 0xff) << 16) |
@@ -70,6 +73,10 @@ public class Packet {
 
     //region [Default Getters and Setters]
 
+    public byte getFlag() {
+        return flag;
+    }
+
     public int getPayloadSize() {
         return payloadSize;
     }
@@ -86,12 +93,14 @@ public class Packet {
         this.sequenceNumber = sequenceNumber;
     }
 
+    //1 byte flag ->  1 if it is the last packet
+      //                      0 if it is not the last packet
     public boolean isNotLastPacket() {
-        return notLastPacket;
+        return flag == (byte)0;
     }
 
-    public void setNotLastPacket(boolean notLastPacket) {
-        this.notLastPacket = notLastPacket;
+    public void setFlag(byte flag) {
+        this.flag = flag;
     }
 
     public byte[] getData() {
@@ -170,7 +179,7 @@ public class Packet {
     public String toString() {
         return "PACKET INFO " +
                 "\nSEQ = " + sequenceNumber +
-                "\nFLAG = " + notLastPacket +
+                "\nFLAG = " + flag +
                 "\nPAYLOAD SIZE = " + payloadSize +
                 "\nCHECKSUM = " + checksum;
     }

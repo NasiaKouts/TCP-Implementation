@@ -45,10 +45,20 @@ public class Client extends BaseServer{
 
         File file = new File(fileDir + "\\" + filename);
         try {
-            InputStream inputStream = new FileInputStream(file);
+            // Loading file into byte array
+            InputStream inputStream = null;
+            try {
+                inputStream = new FileInputStream(file);
+            } catch (FileNotFoundException e) {
+                System.out.println("ERROR FILE INPUT STREAM");
+                e.printStackTrace();
+            }
             byte[] fileByteArray = new byte[(int) file.length()];
             inputStream.read(fileByteArray);
+
+            // Split byte file array of file's data into payloads
             splitToPackets(fileByteArray);
+
             try {
                 packetSocket = new DatagramSocket(getPort(), getInetServerAddress());
                 System.out.println("Opened server socket! Is now able to send packets");
@@ -152,12 +162,12 @@ public class Client extends BaseServer{
                 }
             }
         }
-        System.out.println("Strating to Send The File!");
+        System.out.println("Starting Sending The File!");
 
         if(lastPacketSeq == -1) lastPacketSeq = 0;
         for(int key : payloadsToSent.keySet()){
             try {
-                System.out.println("Strating to Send The File!");
+                System.out.println("current key " + key);
                 DatagramPacket filePartToSend = createPacket(key);
 
                 int result = sendPacket(filePartToSend);

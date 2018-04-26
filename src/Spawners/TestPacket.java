@@ -38,6 +38,7 @@ public class TestPacket {
             for(int key : payloadsToSent.keySet()) {
                 System.out.println("Strating to Send The File!");
                 DatagramPacket filePartToSend = createPacket(key);
+
                 Packet packet = new Packet(filePartToSend.getData());
                 if(first) {
                     String fileName = new String(packet.getData());

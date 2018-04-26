@@ -3,6 +3,9 @@ package Server;
 import Models.Packet;
 import Utils.NetworkUtils;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.*;
 
@@ -114,6 +117,7 @@ public class Server extends BaseServer{
         private int port;
         private boolean handshakeInComplete = true;
         private String fileName = null;
+        private File outFile = null;
 
         private boolean listenForMore = true;
 
@@ -250,58 +254,44 @@ public class Server extends BaseServer{
                     System.out.println("");
                     seqExpecting = NetworkUtils.calculateNextSeqNumber(seqExpecting);
                     sendACK();
-                    continue;
 
-                    //region CREATE FILE TODO
-                    /*File file = new File(fileName);
-                    filesIncomplete.put(clientAddress, file);
-                    if (!file.exists()) {
+                    //region CREATE FILE
+                    outFile = new File(fileName);
+                    if (!outFile.exists()) {
                         try {
-                            file.createNewFile();
+                            outFile.createNewFile();
                         } catch (IOException e) {
                             e.printStackTrace();
+                            return;
                         }
                     }
-                    try {
-                        fileOutputStream = new FileOutputStream(file);
-                    } catch (FileNotFoundException e) {
-                        e.printStackTrace();
-                    }
-
-                    try {
-                        fileOutputStream.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    //TODO MAKE SURE NO MORE INFO NEEDED TO WRITE IN
-                    System.out.println("Server: Received first packet informing about the file name" +
-                            "from " + clientAddress.getHostAddress() +
-                            "\n\t FileName:" + fileName +
-                            "\n\t Sedning ACK..." +
-                            "\n\t Waiting for the file transfer...");
-                    lastSeqNumberReceived.put(clientAddress, packet.getSequenceNumber());
-                    sendACK(clientAddress, port); */
                     //endregion
+
+                    continue;
                 }
 
                 // If the packet simple data of the file being transferred
-                //region WRITE PACKET DATA TO FILE TODO
-                /*try {
-                    fileOutputStream = new FileOutputStream(filesIncomplete.get(clientAddress));
-                } catch (FileNotFoundException e) {
-                    e.printStackTrace();
+                //region WRITE PACKET DATA TO FILE
+                if(outFile != null){
+                    FileOutputStream saltOutFile = null;
+                    try {
+                        saltOutFile = new FileOutputStream(outFile, true);
+                    } catch (FileNotFoundException e) {
+                        e.printStackTrace();
+                    }
+                    try {
+                        saltOutFile.write(packetReceived.getData());
+                    } catch (IOException e) {
+                        System.out.println("ERROR FILE WRITE");
+                        e.printStackTrace();
+                    }
+                    try {
+                        saltOutFile.close();
+                    } catch (IOException e) {
+                        System.out.println("ERROR TRYING TO CLOSE THE FILE");
+                        e.printStackTrace();
+                    }
                 }
-
-                try {
-                    fileOutputStream.write(packet.getData());
-                    fileOutputStream.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                System.out.println("SERVER: New Packet Received from "
-                        + clientAddress.getHostAddress() +
-                        "\n\t Sending ACK...");
-                lastSeqNumberReceived.put(clientAddress, packet.getSequenceNumber());*/
                 //endregion
                 seqExpecting = NetworkUtils.calculateNextSeqNumber(seqExpecting);
                 sendACK();

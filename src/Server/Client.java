@@ -13,7 +13,6 @@ public class Client extends BaseServer{
 
     // Parallel
     private HashMap<Integer, byte[]> payloadsToSent;
-    private HashMap<Integer, Integer> payloadsSizes;
 
     private byte lastPacketSeq = 0;
 
@@ -42,7 +41,6 @@ public class Client extends BaseServer{
         setPort(NetworkUtils.GetNextAvailablePort());
         setIp(NetworkUtils.GetCurrentAddress());
 
-        payloadsSizes = new HashMap<>();
         payloadsToSent = new HashMap<>();
 
         File file = new File(fileDir + "\\" + filename);
@@ -110,7 +108,6 @@ public class Client extends BaseServer{
                 "\n\t Checksum: " + checkSum);
 
         payloadsToSent.put(-1, fileNamePacket);
-        payloadsSizes.put(-1, filenameBytes.length);
 
         //endregion
 
@@ -129,7 +126,6 @@ public class Client extends BaseServer{
                     .forEach(k -> payload[k] = bytes[startIndex + k]);
 
             payloadsToSent.put(i, payload);
-            payloadsSizes.put(i, bytesLength);
         }
     }
 
@@ -168,13 +164,11 @@ public class Client extends BaseServer{
 
             //Sending Client ACK
             if(result == SEND_NEXT){
-                System.out.println("Sended MOTHERFUCKER");
-
                 dummyPacket[0] = lastPacketSeq;
                 try {
                     packetToSent = new DatagramPacket(dummyPacket, dummyPacket.length, getInetServerAddress(), serverPort);
                     sendPacketNoListen(packetToSent);
-                    System.out.println("Sended MOTHERFUCKER");
+                    lastPacketSeq = NetworkUtils.calculateNextSeqNumber(lastPacketSeq);
                     Thread.sleep(1000);
                     reSend = false;
                 } catch (Exception e) {
@@ -185,10 +179,9 @@ public class Client extends BaseServer{
         }
         System.out.println("Strating to Send The File!");
 
-        for(int key : payloadsSizes.keySet()){
+        for(int key : payloadsToSent.keySet()){
             try {
                 System.out.println("Strating to Send The File!");
-                // TODO: 26/4/2018 Fix File Sender Splliter! 
                 DatagramPacket filePartToSend = createPacket(key);
 
                 int result = sendPacket(filePartToSend);
@@ -207,7 +200,6 @@ public class Client extends BaseServer{
     private final static Integer UNABLE_TO_RESUME = -1;
     private final static Integer RETRANSMIT = 1;
     private final static Integer SEND_NEXT = 2;
-
 
     private Integer sendPacketNoListen(DatagramPacket packetToSent){
         // sending the packet
@@ -229,8 +221,6 @@ public class Client extends BaseServer{
         return SEND_NEXT;
     }
 
-
-
     private Integer sendPacket(DatagramPacket packetToSent){
         noValidAckReceived = true;
         while(noValidAckReceived){
@@ -250,7 +240,6 @@ public class Client extends BaseServer{
                 System.out.println("------------------------------------");
                 return UNABLE_TO_RESUME;
             }
-
 
             // packet sent, waiting for ACK
             byte[] ackReceived = new byte[3];
@@ -297,7 +286,7 @@ public class Client extends BaseServer{
                 System.out.println("------------------------------------");
             }
             // If the ACK is not for the corresponding packet, thus means probably the packet lost, so retransmit it
-            else if(ackDecoded == lastPacketSeq){
+            else if(ackDecoded != lastPacketSeq){
                 System.out.println("------------------------------------");
                 System.out.println("Not correct Ack Number Error");
                 System.out.println("------------------------------------");
@@ -369,15 +358,14 @@ public class Client extends BaseServer{
                 x bytes Actual data
                 8 bytes CheckSum
          */
-        boolean isLastPacket = key == (payloadsSizes.size() - 2);
-        int filePartPayloadSize = payloadsSizes.get(key);
+        boolean isLastPacket = key == (payloadsToSent.size() - 2);
         byte[] filePartPayloadData = payloadsToSent.get(key);
 
-        ByteBuffer packetBytesBuffer = ByteBuffer.allocate(filePartPayloadSize + 6);
+        ByteBuffer packetBytesBuffer = ByteBuffer.allocate(filePartPayloadData.length + 6);
         byte[] seqFlag = new byte[2];
         seqFlag[0] = lastPacketSeq;
         seqFlag[1] = isLastPacket ? (byte)1 : (byte)0;
-        byte[] payloadSizeSent = ByteBuffer.allocate(4).putInt(filePartPayloadSize).array();
+        byte[] payloadSizeSent = ByteBuffer.allocate(4).putInt(filePartPayloadData.length).array();
 
         packetBytesBuffer.put(seqFlag);
         packetBytesBuffer.put(payloadSizeSent);

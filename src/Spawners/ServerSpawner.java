@@ -9,7 +9,7 @@ import java.io.InputStreamReader;
 
 public class ServerSpawner {
     public static void main(String args[]){
-        new Server("192.168.1.13", 4200);
+        new Server("localhost", 4200);
 
         if(args.length == 0) {
             BufferedReader in;

@@ -10,7 +10,7 @@ import java.io.InputStreamReader;
 public class ClientSpawner {
     public static void main(String args[]){
         if(args.length == 0) {
-            new Client("192.168.1.13", 4200, "test.txt", "E:\\", 65000);
+            new Client("localhost", 4200, "DSC_0001.jpg", "D:\\Desktop\\101D3200", 65000);
 
 
             BufferedReader in;

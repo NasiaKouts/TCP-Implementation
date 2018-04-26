@@ -63,8 +63,6 @@ public class Server extends BaseServer{
                 // create a new socket with the same IP but different port for the server
                 DatagramSocket threadSocket = new DatagramSocket(NetworkUtils.GetNextAvailablePort());
 
-
-
                 new ServerClientThread(packetReceived.getSequenceNumber(), threadSocket,
                         inDatagramPacket.getAddress(), inDatagramPacket.getPort())
                         .start();
@@ -132,7 +130,7 @@ public class Server extends BaseServer{
             System.out.println("New Thread Listening No: " + counter);
             System.out.println("For client " + clientAddress.getHostAddress());
             System.out.println("");
-            System.out.println("Received the first step of the 3-Way-Handshake! SEQ = " + seqExpecting);
+            System.out.println("Received the first step of the 3-Way-Handshake! SEQ = " + seq);
             SecondPartHandshake();
         }
 
@@ -191,9 +189,10 @@ public class Server extends BaseServer{
 
         @Override
         public void run() {
-            byte[] inPacket = new byte[MAX_PACKET_SIZE];
             System.out.println("Got in run");
             while(listenForMore){
+                byte[] inPacket = new byte[MAX_PACKET_SIZE];
+                System.out.println("WHILE LISTEN SERVER");
                 DatagramPacket inDatagramPacket = new DatagramPacket(inPacket, MAX_PACKET_SIZE);
 
                 try {
@@ -236,9 +235,8 @@ public class Server extends BaseServer{
                     System.out.println("******************************");
                     System.out.println("");
                     handshakeInComplete = false;
-                    System.out.println("Old Seq Expecting: "+seqExpecting);
 
-                    //seqExpecting = NetworkUtils.calculateNextSeqNumber(seqExpecting);
+                    seqExpecting = NetworkUtils.calculateNextSeqNumber(seqExpecting);
                     System.out.println("New Seq Expecting: "+seqExpecting);
                     continue;
                 }

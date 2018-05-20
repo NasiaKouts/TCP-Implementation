@@ -12,7 +12,7 @@ import java.util.stream.IntStream;
 
 public class Client extends BaseServer{
     // Parallel
-    private HashMap<Integer, byte[]> payloadsToSent;
+    private HashMap<Integer, int[]> payloadsToSent;
 
     private byte lastPacketSeq = 0;
 
@@ -29,6 +29,7 @@ public class Client extends BaseServer{
 
     private boolean gotNewServerPort = false;
 
+    private InputStream inputStream;
     private DatagramSocket packetSocket;
 
     private JProgressBar progressBar;
@@ -56,69 +57,54 @@ public class Client extends BaseServer{
         this.progressBar = progressBar;
 
         File file = new File(fileDir + "/" + filename);
+
+        // Loading file into byte array
+        inputStream = null;
         try {
-            // Loading file into byte array
-            InputStream inputStream = null;
-            try {
-                inputStream = new FileInputStream(file);
-            } catch (FileNotFoundException e) {
-                print("ERROR FILE INPUT STREAM");
-                e.printStackTrace();
-            }
-            byte[] fileByteArray = new byte[(int) file.length()];
-            inputStream.read(fileByteArray);
-
-            // Split byte file array of file's data into payloads
-            splitToPackets(fileByteArray);
-
-            try {
-                packetSocket = new DatagramSocket(getPort(), getInetServerAddress());
-                print("Opened server socket! Is now able to send packets");
-            } catch (SocketException e) {
-                e.printStackTrace();
-                print("------------------------------------");
-                print("packetSocket = new DatagramSocket(serverPort, InetAddress.getByName(getServerIp()) error");
-                print("Re-open Client and Try Again!");
-                print("------------------------------------");
-            } catch (UnknownHostException e) {
-                e.printStackTrace();
-                print("------------------------------------");
-                print("Unknown Hoet Error");
-                print("Re-open Client and Try Again!");
-                print("------------------------------------");
-
-            }
-            handShake();
-        } catch (IOException e) {
+            inputStream = new FileInputStream(file);
+        } catch (FileNotFoundException e) {
+            print("ERROR FILE INPUT STREAM");
             e.printStackTrace();
         }
+
+        // Split byte file array of file's data into payloads
+        splitToPackets(file.length());
+
+        try {
+            packetSocket = new DatagramSocket(getPort(), getInetServerAddress());
+            print("Opened server socket! Is now able to send packets");
+        } catch (SocketException e) {
+            e.printStackTrace();
+            print("------------------------------------");
+            print("packetSocket = new DatagramSocket(serverPort, InetAddress.getByName(getServerIp()) error");
+            print("Re-open Client and Try Again!");
+            print("------------------------------------");
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+            print("------------------------------------");
+            print("Unknown Hoet Error");
+            print("Re-open Client and Try Again!");
+            print("------------------------------------");
+
+        }
+        handShake();
     }
 
-    private void splitToPackets(byte[] bytes){
-        int fullSteps = bytes.length / payloadSize;
+    private void splitToPackets(long bytes){
+        int fullSteps = (int)bytes / payloadSize;
 
-        //region [Add Filename Packet]
+        payloadsToSent.put(-1, new int[] {-1, 0});
 
-        byte[] filenameBytes = filename.getBytes();
-
-        payloadsToSent.put(-1, filenameBytes);
-
-        //endregion
         for(int i = 0; i <= fullSteps; i++){
             int startIndex = i * payloadSize;
             int bytesLength = payloadSize;
             if (i == fullSteps){
-                int lastLength = bytes.length - startIndex;
+                int lastLength = (int)bytes - startIndex;
                 if(lastLength <= 0) return;
                 bytesLength = lastLength;
             }
 
-            byte[] payload = new byte[bytesLength];
-            IntStream.range(0, bytesLength)
-                    .parallel()
-                    .forEach(k -> payload[k] = bytes[startIndex + k]);
-
-            payloadsToSent.put(i, payload);
+            payloadsToSent.put(i, new int[] {startIndex, startIndex + bytesLength - 1});
         }
     }
 
@@ -415,7 +401,17 @@ public class Client extends BaseServer{
                 8 bytes CheckSum
          */
         boolean isLastPacket = key == (payloadsToSent.size() - 2);
-        byte[] filePartPayloadData = payloadsToSent.get(key);
+
+        byte[] filePartPayloadData;
+
+        if(key == -1){
+            filePartPayloadData = filename.getBytes();
+        }else{
+            int[] indexes = payloadsToSent.get(key);
+
+            filePartPayloadData = new byte[indexes[1] - indexes[0] + 1];
+            inputStream.read(filePartPayloadData);
+        }
 
         ByteBuffer packetBytesBuffer = ByteBuffer.allocate(filePartPayloadData.length + Packet.HEADER_SIZE);
         byte[] header = new byte[Packet.HEADER_SIZE];

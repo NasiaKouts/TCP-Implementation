@@ -378,12 +378,13 @@ public class Server extends BaseServer{
                 //region CREATE FILE
 
                 outFile = new File(fileName);
-                if (!outFile.exists()) {
-                    try {
-                        outFile.createNewFile();
-                    } catch (IOException e) {
-                        e.printStackTrace();
+                try {
+                    if (outFile.exists()) {
+                        outFile.delete();
                     }
+                    outFile.createNewFile();
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
 
                 //endregion

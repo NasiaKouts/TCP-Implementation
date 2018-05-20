@@ -224,7 +224,12 @@ public class Client extends BaseServer{
         kbps = kbps*100;
         kbps = (double)((int) kbps);
         kbps = kbps /100;
-
+        final JFrame parent = new JFrame();
+        JButton button = new JButton();
+        JOptionPane.showMessageDialog(parent,
+                "Total Transfer Time:\t" + estimatedTimeInMs + " ms\n"+
+                        "Transfer Speed:\t" + kbps + " kBps\n"+
+                        "Total Packets Used:\t" + totalPackets);
         print("******************************");
         print("Total Transfer Time:\t" + estimatedTimeInMs + " ms");
         print("Transfer Speed:\t" + kbps + " kBps");

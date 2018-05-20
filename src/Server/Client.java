@@ -31,7 +31,15 @@ public class Client extends BaseServer{
 
     private DatagramSocket packetSocket;
 
-    public Client(String serverIp, int serverPort, String filename, String fileDir, int payloadSize, JTextArea systemOut){
+    private JProgressBar progressBar;
+
+    public Client(String serverIp,
+                  int serverPort,
+                  String filename,
+                  String fileDir,
+                  int payloadSize,
+                  JTextArea systemOut,
+                  JProgressBar progressBar){
         super();
         setServerIp(serverIp);
         setServerPort(serverPort);
@@ -45,8 +53,9 @@ public class Client extends BaseServer{
         totalPackets = 0;
         totalBytesSent = 0;
         payloadsToSent = new HashMap<>();
+        this.progressBar = progressBar;
 
-        File file = new File(fileDir + "\\" + filename);
+        File file = new File(fileDir + "/" + filename);
         try {
             // Loading file into byte array
             InputStream inputStream = null;
@@ -184,6 +193,13 @@ public class Client extends BaseServer{
                 while (result != SEND_NEXT){
                     filePartToSend = createPacket(key);
                     result = sendPacket(filePartToSend);
+                }
+
+                if(progressBar != null){
+                    int value = (int) ((double) (key+1)*100/payloadsToSent.keySet().size());
+                    if(key == payloadsToSent.keySet().size() - 2)
+                        value = 100;
+                    progressBar.setValue(value);
                 }
             } catch (IOException e) {
                 e.printStackTrace();

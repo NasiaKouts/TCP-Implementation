@@ -24,9 +24,9 @@ public class GUIClient {
     private JTextField ipServerAddressField;
     private JTextField ipClientAddressField;
 
-
     private JTextField serverPortNumberInput;
     private JTextField clientPortNumberInput;
+    private JProgressBar clientProgressBar;
 
     private JTextField payloadSize;
 
@@ -111,13 +111,21 @@ public class GUIClient {
         chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
 
         ipClientAddressField = new JTextField("",20);
+        ipClientAddressField.setText("localhost");
         clientPortNumberInput = new JTextField("",20);
+        clientPortNumberInput.setText("4200");
 
         ipClientAddressField.setActionCommand("IPClient");
         ipClientAddressField.addActionListener(new InformationListener());
 
         clientPortNumberInput.setActionCommand("PORTClient");
         clientPortNumberInput.addActionListener(new InformationListener());
+
+        clientProgressBar = new JProgressBar();
+        clientProgressBar.setMaximum(100);
+        clientProgressBar.setMinimum(0);
+        clientProgressBar.setValue(0);
+        clientProgressBar.setStringPainted(true);
 
         JButton submitButton = new JButton("Start");
         submitButton.setActionCommand("SubmitClient");
@@ -132,6 +140,7 @@ public class GUIClient {
         JLabel ipClientText = new JLabel("Server IP   ");
         JLabel clientPortText = new JLabel("Server Port");
         JLabel payloadText = new JLabel("Packet Size");
+        JLabel loadingText = new JLabel("Loading Progress");
 
         //JFileChooser chooser = new JFileChooser();
         clientControlPanel.add(ipClientText);
@@ -146,6 +155,9 @@ public class GUIClient {
         clientControlPanel.add(payloadText);
         clientControlPanel.add(payloadSize);
 
+        clientControlPanel.add(loadingText);
+        clientControlPanel.add(Box.createRigidArea(new Dimension(0,2)));
+        clientControlPanel.add(clientProgressBar);
 
         clientControlPanel.add(submitButton);
         clientControlPanel.add(fileButton);
@@ -165,7 +177,9 @@ public class GUIClient {
         serverScrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
 
         ipServerAddressField = new JTextField("",20);
+        ipServerAddressField.setText("localhost");
         serverPortNumberInput = new JTextField("",20);
+        serverPortNumberInput.setText("4200");
 
         ipServerAddressField.setActionCommand("IP");
         ipServerAddressField.addActionListener(new InformationListener());
@@ -241,7 +255,8 @@ public class GUIClient {
                                     fileName,
                                     filePath,
                                     Integer.parseInt(payload),
-                                    clientTextArea))
+                                    clientTextArea,
+                                    clientProgressBar))
                             .start();
 
 

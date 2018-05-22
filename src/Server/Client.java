@@ -34,6 +34,8 @@ public class Client extends BaseServer{
 
     private JProgressBar progressBar;
 
+    private boolean handshakeIncomplete = true;
+
     public Client(String serverIp,
                   int serverPort,
                   String filename,
@@ -165,6 +167,8 @@ public class Client extends BaseServer{
             }
         }
 
+        handshakeIncomplete = false;
+
         long startTime = System.nanoTime();
 
         print("Starting Sending The File!");
@@ -237,7 +241,6 @@ public class Client extends BaseServer{
         print("******************************");
     }
 
-    private final static byte SIGNAL_SERVER_TERMINATION = 3;
     private final static Integer UNABLE_TO_RESUME = -1;
     private final static Integer SEND_NEXT = 2;
 
@@ -275,7 +278,6 @@ public class Client extends BaseServer{
             if (forwardPacket(packetToSent)) return UNABLE_TO_RESUME;
 
             int sizeOfReceived = 1;
-            boolean handshakeIncomplete = true;
             if(handshakeIncomplete)  sizeOfReceived = 5;
             // packet sent, waiting for ACK
             byte[] ackReceived = new byte[sizeOfReceived];

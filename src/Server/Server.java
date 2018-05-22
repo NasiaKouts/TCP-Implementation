@@ -23,6 +23,7 @@ public class Server extends BaseServer{
         setIp(ip);
         setPort(port);
         setSystemOut(systemOut);
+
         try {
             inServerSocket = new DatagramSocket(getPort());
             print(getInstanceName() + " with " +
@@ -33,6 +34,7 @@ public class Server extends BaseServer{
             print("inServerSocket new error");
             print("------------------------------------");
         }
+
         this.handleListening();
     }
 
@@ -59,11 +61,15 @@ public class Server extends BaseServer{
             }
 
             // In case the packet is corrupt continue to next iteration of the loop
-            Packet packetReceived = handleReceivingPacket(inDatagramPacket);
+            Packet packetReceived = getPacketIfValid(inDatagramPacket);
             if(packetReceived == null) continue;
 
-            // If the we havent received the initialize handshake packet from this client
-            if(!packetReceived.isNoDataPacket()) {
+            // If the we haven't received the initialize handshake packet from this client
+            if(!packetReceived.isNoDataPacket()
+                    || (packetReceived.getSequenceNumber() == 1
+                        && packetReceived.isNoDataPacket()
+                        && !packetReceived.isNotLastPacket() )
+                ){
                 print("------------------------------------");
                 print("Client tried to send data without handshaking first!");
                 print("Ignoring this...");
@@ -84,7 +90,6 @@ public class Server extends BaseServer{
                 print("------------------------------------");
                 print("new DatagramSocket Error");
                 print("------------------------------------");
-                continue;
             }
 
         }
@@ -96,7 +101,7 @@ public class Server extends BaseServer{
      * @return Packet that is received if it is valid
      *         null otherwise
      */
-    public Packet handleReceivingPacket(DatagramPacket inDatagramPacket){
+    public Packet getPacketIfValid(DatagramPacket inDatagramPacket){
         Packet packetRecieved = new Packet(inDatagramPacket.getData());
 
         // If Packet is Valid
@@ -111,11 +116,10 @@ public class Server extends BaseServer{
             print("\nCheckSum on Calculated: " + packetRecieved.caluclateCheckSumFromRawData(inDatagramPacket.getData()));
             print("\nDropping Packet. Ignore receiving and wait for retransmission...");
             print("------------------------------------");
-
             return null;
         }
     }
-    private final static byte SIGNAL_SERVER_TERMINATION = 3;
+
     public class ServerClientThread extends Thread {
         private int MAX_PACKET_SIZE_IN_THIS_CONNECTION = 65509;
 
@@ -126,7 +130,7 @@ public class Server extends BaseServer{
         private byte seqExpecting;
 
         private int clientId;
-        private int counter = 0;
+        private int counter;
         private boolean handshakeInComplete = true;
         private String fileName = null;
         private File outFile = null;
@@ -156,10 +160,11 @@ public class Server extends BaseServer{
             print("For client " + clientAddress.getHostAddress());
             print("");
             print("Received the first step of the 3-Way-Handshake! SEQ = " + seq);
-            SecondPartHandshake();
+
+            respondToHandshake();
         }
 
-        private void SecondPartHandshake() {
+        private void respondToHandshake() {
             print("Starting the second step of the 3-Way-Handshake! (Send ACK with my new Port server)");
             print("******************************");
             sendSynAckWithNewPort();
@@ -235,7 +240,10 @@ public class Server extends BaseServer{
                     print("Sending SYN-ACK Again");
                     print("------------------------------------");
 
-                    if(timeoutExceedCount > 2) return;
+                    if(timeoutExceedCount > 2) {
+                        print("Unable to establish 3-hand-shake! Closing thread communication with client...");
+                        return;
+                    }
 
                     timeoutExceedCount++;
                     sendSynAckWithNewPort();
@@ -256,7 +264,7 @@ public class Server extends BaseServer{
                 }
 
                 // In case the packet is CORRUPT continue to next iteration of the loop
-                Packet packetReceived = handleReceivingPacket(inDatagramPacket);
+                Packet packetReceived = getPacketIfValid(inDatagramPacket);
                 if (packetReceived == null) {
                     print("CORRUPTED");
                     continue;
@@ -323,7 +331,7 @@ public class Server extends BaseServer{
             }
 
             // In case the packet is CORRUPT continue to next iteration of the loop
-            Packet packetReceived = handleReceivingPacket(inDatagramPacket);
+            Packet packetReceived = getPacketIfValid(inDatagramPacket);
             if (packetReceived == null) {
                 print("CORRUPTED");
                 return null;

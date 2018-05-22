@@ -18,6 +18,8 @@ public class Server extends BaseServer{
     /* Define the socket that receives requests */
     private DatagramSocket inServerSocket;
 
+    public ServerClientThread thread;
+
     public Server(String ip, int port, JTextArea systemOut) {
         super();
         setIp(ip);
@@ -47,6 +49,7 @@ public class Server extends BaseServer{
         boolean keepListening = true;
         while (keepListening) {
             try {
+                inServerSocket.setSoTimeout(10000);
                 inServerSocket.receive(inDatagramPacket);
                 print("******************************");
                 print("A Packet Received on default port");
@@ -82,16 +85,15 @@ public class Server extends BaseServer{
                 int newPort = NetworkUtils.GetNextAvailablePort();
                 DatagramSocket threadSocket = new DatagramSocket(newPort);
 
-                new ServerClientThread(packetReceived.getSequenceNumber(), threadSocket, newPort,
-                        inDatagramPacket.getAddress(), inDatagramPacket.getPort())
-                        .start();
+                thread = new ServerClientThread(packetReceived.getSequenceNumber(), threadSocket, newPort,
+                        inDatagramPacket.getAddress(), inDatagramPacket.getPort());
+                thread.start();
             } catch (SocketException e) {
                 e.printStackTrace();
                 print("------------------------------------");
                 print("new DatagramSocket Error");
                 print("------------------------------------");
             }
-
         }
     }
 

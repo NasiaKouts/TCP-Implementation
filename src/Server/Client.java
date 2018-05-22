@@ -350,6 +350,8 @@ public class Client extends BaseServer{
 
                 lastPacketSeq = NetworkUtils.calculateNextSeqNumber(lastPacketSeq);
                 noValidAckReceived = false;
+
+                return SEND_NEXT;
             }
         }
         return SEND_NEXT;

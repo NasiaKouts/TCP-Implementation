@@ -37,6 +37,7 @@ public class GUIClient {
     private String finalPort = "";
 
     private Thread serverThread;
+    private Server server;
 
     public static void main(String[] args){
         new GUIClient();
@@ -225,7 +226,7 @@ public class GUIClient {
                         // Initialize the server
                         if(serverThread != null) return;
 
-                        serverThread = new Thread(() -> new Server(finalIp, Integer.parseInt(finalPort), serverTextArea));
+                        serverThread = new Thread(() -> server = new Server(finalIp, Integer.parseInt(finalPort), serverTextArea));
                         serverThread.start();
 
                         serverTextArea.append("Server Opened!\n");
@@ -237,10 +238,16 @@ public class GUIClient {
                     }
                     break;
                 case "StopServer":
-                    if(serverThread == null) return;
+                    if(serverThread != null) {
+                        serverThread.interrupt();
+                        serverThread = null;
+                    }
 
-                    serverThread.interrupt();
-                    serverThread = null;
+                    if(server != null && server.thread != null){
+                        server.thread.interrupt();
+                        server.thread = null;
+                    }
+
                     serverTextArea.append("\nServer Interrupted!");
                     break;
                 case "SubmitClient":

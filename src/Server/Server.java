@@ -320,6 +320,7 @@ public class Server extends BaseServer{
 
             try {
                 print(socket.getLocalPort());
+                socket.setSoTimeout(10000);
                 socket.receive(inDatagramPacket);
                 print("******************************");
                 print("A Packet Received by client no: " + clientId);

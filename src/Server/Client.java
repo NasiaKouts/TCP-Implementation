@@ -73,7 +73,7 @@ public class Client extends BaseServer{
         splitToPackets(file.length());
 
         try {
-            packetSocket = new DatagramSocket(getPort(), getInetServerAddress());
+            packetSocket = new DatagramSocket(getPort(), InetAddress.getByName(getIp()));
             print("Opened server socket! Is now able to send packets");
         } catch (SocketException e) {
             e.printStackTrace();

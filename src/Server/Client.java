@@ -58,7 +58,7 @@ public class Client extends BaseServer{
         payloadsToSent = new HashMap<>();
         this.progressBar = progressBar;
 
-        File file = new File(fileDir + "/" + filename);
+        File file = new File(fileDir + "\\" + filename);
 
         // Loading file into byte array
         inputStream = null;
